@@ -37,6 +37,7 @@ main {
 
 header,
 .connection,
+.notice,
 .fields,
 .toolbar,
 .notes,
@@ -46,6 +47,18 @@ footer {
   border-radius: 8px;
   background: var(--panel);
   padding: 10px;
+}
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #475569;
+  font-size: 13px;
+}
+
+.notice strong {
+  color: #111827;
 }
 
 h1 {
@@ -103,6 +116,7 @@ button:disabled {
 button.tool,
 #capture,
 #autofill,
+#calcPnl,
 #exportJson,
 #saveConnection,
 #undo,
@@ -184,6 +198,14 @@ footer {
   color: var(--accent);
   font-weight: 700;
   white-space: pre-wrap;
+}
+
+.fieldAction {
+  min-height: 28px;
+  border-color: var(--line);
+  background: #f8fafc;
+  color: #334155;
+  font-size: 12px;
 }
 
 @media (max-width: 760px) {

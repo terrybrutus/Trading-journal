@@ -25,6 +25,11 @@
         <button id="saveConnection" type="button">Save connection</button>
       </section>
 
+      <section class="notice">
+        <strong>Caffeine sync status</strong>
+        <span>If the endpoint returns the app HTML page instead of JSON, Caffeine has not exposed a real capture API at that URL yet.</span>
+      </section>
+
       <section class="fields">
         <label>
           Symbol
@@ -53,10 +58,12 @@
         <label>
           Entry price
           <input id="entryPrice" inputmode="decimal">
+          <button id="usePriceAsEntry" class="fieldAction" type="button">Use chart price</button>
         </label>
         <label>
           Exit price
           <input id="exitPrice" inputmode="decimal">
+          <button id="usePriceAsExit" class="fieldAction" type="button">Use chart price</button>
         </label>
         <label>
           Size
@@ -105,8 +112,9 @@
       </section>
 
       <footer>
-        <button id="capture" type="button">Capture current tab</button>
+        <button id="capture" type="button">Capture TradingView tab</button>
         <button id="autofill" type="button">Auto-fill from TradingView</button>
+        <button id="calcPnl" type="button">Calculate P/L</button>
         <button id="send" type="button">Send to Caffeine</button>
         <button id="exportJson" type="button">Export JSON</button>
         <span id="status" role="status"></span>

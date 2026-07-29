@@ -10,7 +10,9 @@ const els = {
   direction: document.getElementById("direction"),
   tradeOccurredAt: document.getElementById("tradeOccurredAt"),
   entryPrice: document.getElementById("entryPrice"),
+  usePriceAsEntry: document.getElementById("usePriceAsEntry"),
   exitPrice: document.getElementById("exitPrice"),
+  usePriceAsExit: document.getElementById("usePriceAsExit"),
   size: document.getElementById("size"),
   realizedPnl: document.getElementById("realizedPnl"),
   bucket: document.getElementById("bucket"),
@@ -22,6 +24,7 @@ const els = {
   undo: document.getElementById("undo"),
   capture: document.getElementById("capture"),
   autofill: document.getElementById("autofill"),
+  calcPnl: document.getElementById("calcPnl"),
   send: document.getElementById("send"),
   exportJson: document.getElementById("exportJson"),
   record: document.getElementById("record"),
@@ -245,20 +248,30 @@ async function saveConnection() {
   setStatus("Connection saved.");
 }
 
-async function autofillFromActiveTradingViewTab() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id || !/^https:\/\/([^/]+\.)?tradingview\.com\//i.test(tab.url || "")) {
-    setStatus("Open a TradingView tab, then click Auto-fill.");
-    return;
-  }
+function isTradingViewUrl(url = "") {
+  return /^https:\/\/([^/]+\.)?tradingview\.com\//i.test(url);
+}
 
+async function findTradingViewTab() {
+  const tabs = await chrome.tabs.query({});
+  const active = tabs.find((tab) => tab.active && isTradingViewUrl(tab.url || ""));
+  if (active) return active;
+  const candidates = tabs.filter((tab) => isTradingViewUrl(tab.url || ""));
+  return candidates.sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0))[0] || null;
+}
+
+async function readTradingViewContext(tab) {
   const [result] = await chrome.scripting.executeScript({
     target: { tabId: tab.id },
     func: () => {
       const title = document.title || "";
       const titleMatch = title.match(/^([A-Z0-9:_\-.]+)/i);
       const symbol = titleMatch ? titleMatch[1].replace(/^.*:/, "") : "";
-      const price = title.match(/\b(\d+(?:\.\d+)?)\b/)?.[1] || "";
+      const priceCandidates = [...document.querySelectorAll("[class*=price], [data-name*=price], [data-field*=price], span, div")]
+        .map((node) => node.textContent?.trim() || "")
+        .filter((text) => /^\$?-?\d{1,6}(?:,\d{3})*(?:\.\d+)?$/.test(text))
+        .slice(0, 25);
+      const price = priceCandidates[0]?.replace(/[$,]/g, "") || title.match(/\b(\d+(?:\.\d+)?)\b/)?.[1] || "";
       const timeframe = [...document.querySelectorAll("button, [role=button], [data-name]")]
         .map((node) => node.textContent?.trim() || "")
         .find((text) => /^(1|3|5|15|30|45|60|120|180|240|1D|1W|1M|D|W|M)$/i.test(text)) || "";
@@ -266,11 +279,26 @@ async function autofillFromActiveTradingViewTab() {
     }
   });
 
-  const value = result?.result || {};
+  return result?.result || {};
+}
+
+async function autofillFromTradingViewTab() {
+  const tab = await findTradingViewTab();
+  if (!tab?.id) {
+    setStatus("Open a TradingView tab, then click Auto-fill.");
+    return;
+  }
+
+  const value = await readTradingViewContext(tab);
+  capture = { ...(capture || {}), pageUrl: tab.url || capture?.pageUrl || "" };
+  applyTradingViewContext(value);
+  setStatus(value.symbol || value.timeframe || value.price ? "Auto-filled from your TradingView tab." : "TradingView did not expose symbol/timeframe/price in readable page text.");
+}
+
+function applyTradingViewContext(value = {}) {
   if (value.symbol) els.symbol.value = value.symbol;
   if (value.timeframe) els.timeframe.value = value.timeframe;
   if (value.price) els.price.value = value.price;
-  setStatus(value.symbol || value.timeframe || value.price ? "Auto-filled what TradingView exposed." : "TradingView did not expose symbol/timeframe in readable page text.");
 }
 
 async function loadConnection() {
@@ -295,15 +323,29 @@ async function loadPendingCapture() {
 }
 
 async function captureCurrentTab() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" }, async (dataUrl) => {
+  const tradingViewTab = await findTradingViewTab();
+  if (!tradingViewTab?.id || !tradingViewTab.windowId) {
+    setStatus("Open a TradingView tab first, then click Capture TradingView tab.");
+    return;
+  }
+  const [editorTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  setStatus("Switching to TradingView for capture...");
+  await chrome.tabs.update(tradingViewTab.id, { active: true });
+  await chrome.windows.update(tradingViewTab.windowId, { focused: true });
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  chrome.tabs.captureVisibleTab(tradingViewTab.windowId, { format: "png" }, async (dataUrl) => {
     if (chrome.runtime.lastError) {
       setStatus(chrome.runtime.lastError.message);
       return;
     }
-    capture = { dataUrl, pageUrl: tab.url || "", capturedAt: new Date().toISOString(), symbol: "" };
+    const context = await readTradingViewContext(tradingViewTab).catch(() => ({}));
+    capture = { dataUrl, pageUrl: tradingViewTab.url || "", capturedAt: new Date().toISOString(), ...context };
+    applyTradingViewContext(context);
     await setScreenshot(dataUrl);
-    setStatus("Captured current tab.");
+    if (editorTab?.id) {
+      await chrome.tabs.update(editorTab.id, { active: true }).catch(() => {});
+    }
+    setStatus("Captured TradingView tab.");
   });
 }
 
@@ -336,11 +378,16 @@ async function sendToCaffeine() {
     });
 
     const text = await response.text();
+    const contentType = response.headers.get("content-type") || "";
     let body = null;
     try {
       body = text ? JSON.parse(text) : null;
     } catch {
       body = text;
+    }
+
+    if (/text\/html/i.test(contentType) || /^\s*<!doctype html/i.test(text) || /^\s*<html/i.test(text)) {
+      throw new Error("Endpoint returned the Caffeine app HTML, not JSON. That means /api/capture is not a live capture API yet.");
     }
 
     if (!response.ok) {
@@ -360,6 +407,28 @@ async function sendToCaffeine() {
     clearTimeout(timeout);
     els.send.disabled = false;
   }
+}
+
+function useChartPrice(target) {
+  const price = els.price.value.trim();
+  if (!price) {
+    setStatus("No chart price available. Click Auto-fill from TradingView first.");
+    return;
+  }
+  target.value = price;
+}
+
+function calculatePnl() {
+  const entry = numberOrNull(els.entryPrice.value);
+  const exit = numberOrNull(els.exitPrice.value);
+  const size = numberOrNull(els.size.value) || 1;
+  const direction = els.direction.value;
+  if (entry === null || exit === null || !direction) {
+    setStatus("Choose direction and enter entry/exit to calculate P/L.");
+    return;
+  }
+  const pnl = direction === "short" ? (entry - exit) * size : (exit - entry) * size;
+  els.realizedPnl.value = pnl.toFixed(2);
 }
 
 function exportJson() {
@@ -457,7 +526,10 @@ els.undo.addEventListener("click", () => {
 });
 els.saveConnection.addEventListener("click", saveConnection);
 els.capture.addEventListener("click", captureCurrentTab);
-els.autofill.addEventListener("click", () => autofillFromActiveTradingViewTab().catch((error) => setStatus(`Auto-fill failed: ${error.message}`)));
+els.autofill.addEventListener("click", () => autofillFromTradingViewTab().catch((error) => setStatus(`Auto-fill failed: ${error.message}`)));
+els.usePriceAsEntry.addEventListener("click", () => useChartPrice(els.entryPrice));
+els.usePriceAsExit.addEventListener("click", () => useChartPrice(els.exitPrice));
+els.calcPnl.addEventListener("click", calculatePnl);
 els.send.addEventListener("click", () => sendToCaffeine().catch((error) => setStatus(`Sync failed: ${error.message}`)));
 els.exportJson.addEventListener("click", exportJson);
 els.record.addEventListener("click", () => startRecording().catch((error) => setStatus(error.message)));
