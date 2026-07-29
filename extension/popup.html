@@ -13,21 +13,30 @@
         <p>Annotate the visible chart and send it to Bias Journal as a draft. If audio is blocked, enable microphone access for this extension in Chrome site settings.</p>
       </header>
 
-      <section class="connection">
-        <label>
-          Endpoint
-          <input id="endpoint" type="url" placeholder="https://your-site.caffeine.xyz/api/capture">
-        </label>
-        <label>
-          API token
-          <input id="token" type="password" placeholder="Paste token from Settings">
-        </label>
-        <button id="saveConnection" type="button">Save connection</button>
+      <section class="statusbar">
+        <div>
+          <strong>Status</strong>
+          <span id="status" role="status">Ready.</span>
+        </div>
+        <details class="connectionDetails">
+          <summary>Connection</summary>
+          <div class="connection">
+            <label>
+              Caffeine app URL
+              <input id="endpoint" type="url" placeholder="https://your-site.caffeine.xyz">
+            </label>
+            <label>
+              API token
+              <input id="token" type="password" placeholder="Paste token from Settings">
+            </label>
+            <button id="saveConnection" type="button">Save</button>
+          </div>
+        </details>
       </section>
 
       <section class="notice">
         <strong>Caffeine sync status</strong>
-        <span>If the endpoint returns the app HTML page instead of JSON, Caffeine has not exposed a real capture API at that URL yet.</span>
+        <span>The extension now hands captures to your logged-in Caffeine app, then the app calls its own backend.</span>
       </section>
 
       <section class="fields">
@@ -117,7 +126,6 @@
         <button id="calcPnl" type="button">Calculate P/L</button>
         <button id="send" type="button">Send to Caffeine</button>
         <button id="exportJson" type="button">Export JSON</button>
-        <span id="status" role="status"></span>
       </footer>
     </main>
     <script src="popup.js"></script>

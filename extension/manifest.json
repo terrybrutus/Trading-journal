@@ -15,6 +15,10 @@
       "matches": ["https://www.tradingview.com/*", "https://*.tradingview.com/*"],
       "js": ["content.js"],
       "css": ["content.css"]
+    },
+    {
+      "matches": ["https://*.caffeine.xyz/*"],
+      "js": ["caffeine_bridge.js"]
     }
   ],
   "permissions": ["activeTab", "audioCapture", "scripting", "storage", "tabs"],

@@ -17,9 +17,9 @@ The same folder works on Windows and macOS.
 
 1. In QUANTUM, open `Settings`.
 2. Generate or regenerate the Chrome extension API token.
-3. Copy the endpoint from Settings, usually:
-   `https://exciting-brown-rc2-draft.caffeine.xyz/api/capture`
-4. Click the extension icon and paste the endpoint and token.
+3. Copy the Caffeine app URL from Settings, usually:
+   `https://exciting-brown-rc2-draft.caffeine.xyz`
+4. Click the extension icon and paste the app URL and token.
 5. Click `Save connection`.
 
 ## Capture Flow
@@ -30,5 +30,5 @@ The same folder works on Windows and macOS.
 4. Optionally record audio or use browser speech transcript.
 5. Click `Send to Caffeine`.
 
-The extension sends a draft capture to Caffeine and keeps the last submitted capture in local extension storage as a recovery backup.
+The extension opens Caffeine, hands the capture to the signed-in app, and the app calls its own backend to create a draft. The extension keeps the last submitted capture in local extension storage as a recovery backup.
 

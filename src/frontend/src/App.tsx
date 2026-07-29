@@ -1,6 +1,12 @@
 import { router } from "@/router";
+import { ExtensionCaptureBridge } from "@/components/ExtensionCaptureBridge";
 import { RouterProvider } from "@tanstack/react-router";
 
 export default function App() {
-  return <RouterProvider router={router} />;
+  return (
+    <>
+      <ExtensionCaptureBridge />
+      <RouterProvider router={router} />
+    </>
+  );
 }

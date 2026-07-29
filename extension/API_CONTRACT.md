@@ -1,14 +1,15 @@
 # Extension API Contract
 
-The extension posts captures to the endpoint shown in the app Settings page.
+The extension uses a browser bridge because Caffeine exports this app as a
+single-page application. A path such as `/api/capture` can return the app HTML
+shell instead of an HTTP API response.
 
-```http
-POST /api/capture
-Authorization: Bearer <api-token>
-Content-Type: application/json
-```
+The current working path is:
 
-The extension also includes `token` in the JSON body so the same payload can be adapted to the current Motoko actor method:
+1. Extension stores the pending capture in `chrome.storage.local`.
+2. Extension opens the Caffeine app URL.
+3. `extension/caffeine_bridge.js` posts the capture into the page.
+4. `ExtensionCaptureBridge.tsx` calls the Motoko actor method:
 
 ```motoko
 receiveExtensionCapture(capture : ExtensionCapture)
@@ -53,17 +54,16 @@ The extension sends both friendly HTTP names and current backend-native names wh
 }
 ```
 
-## Response Body
+## Bridge Result
 
-The extension accepts any of these identifiers:
+The app reports one of these results back through the bridge:
 
 ```json
 {
   "ok": true,
   "tradeId": 123,
-  "entryId": 123,
-  "id": 123,
-  "status": "draft"
+  "mediaId": 456,
+  "wasDraftCreated": true
 }
 ```
 

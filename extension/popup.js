@@ -1,4 +1,4 @@
-const DEFAULT_ENDPOINT = "https://exciting-brown-rc2-draft.caffeine.xyz/api/capture";
+const DEFAULT_ENDPOINT = "https://exciting-brown-rc2-draft.caffeine.xyz";
 
 const els = {
   endpoint: document.getElementById("endpoint"),
@@ -242,10 +242,19 @@ function currentEntry() {
 
 async function saveConnection() {
   await chrome.storage.local.set({
-    quantumCaptureEndpoint: els.endpoint.value.trim() || DEFAULT_ENDPOINT,
+    quantumCaptureEndpoint: normalizeCaffeineUrl(els.endpoint.value.trim() || DEFAULT_ENDPOINT),
     quantumApiToken: els.token.value.trim()
   });
   setStatus("Connection saved.");
+}
+
+function normalizeCaffeineUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.origin;
+  } catch {
+    return DEFAULT_ENDPOINT;
+  }
 }
 
 function isTradingViewUrl(url = "") {
@@ -303,7 +312,7 @@ function applyTradingViewContext(value = {}) {
 
 async function loadConnection() {
   const result = await chrome.storage.local.get(["quantumCaptureEndpoint", "quantumApiToken"]);
-  els.endpoint.value = result.quantumCaptureEndpoint || DEFAULT_ENDPOINT;
+  els.endpoint.value = normalizeCaffeineUrl(result.quantumCaptureEndpoint || DEFAULT_ENDPOINT);
   els.token.value = result.quantumApiToken || "";
 }
 
@@ -350,10 +359,10 @@ async function captureCurrentTab() {
 }
 
 async function sendToCaffeine() {
-  const endpoint = els.endpoint.value.trim();
+  const endpoint = normalizeCaffeineUrl(els.endpoint.value.trim());
   const token = els.token.value.trim();
   if (!endpoint || !token) {
-    setStatus("Add endpoint and API token first.");
+    setStatus("Add Caffeine app URL and API token first.");
     return;
   }
 
@@ -361,52 +370,44 @@ async function sendToCaffeine() {
     quantumCaptureEndpoint: endpoint,
     quantumApiToken: token
   });
-  setStatus("Sending to Caffeine...");
+  setStatus("Opening Caffeine to import capture...");
   els.send.disabled = true;
   const entry = currentEntry();
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 20000);
   try {
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ ...entry, token }),
-      signal: controller.signal
-    });
-
-    const text = await response.text();
-    const contentType = response.headers.get("content-type") || "";
-    let body = null;
-    try {
-      body = text ? JSON.parse(text) : null;
-    } catch {
-      body = text;
-    }
-
-    if (/text\/html/i.test(contentType) || /^\s*<!doctype html/i.test(text) || /^\s*<html/i.test(text)) {
-      throw new Error("Endpoint returned the Caffeine app HTML, not JSON. That means /api/capture is not a live capture API yet.");
-    }
-
-    if (!response.ok) {
-      throw new Error(typeof body === "string" ? body.slice(0, 300) : body?.message || body?.error || `HTTP ${response.status}`);
-    }
-
     await chrome.storage.local.set({
-      quantumLastCapture: {
+      quantumPendingCaffeineCapture: {
         ...entry,
-        caffeineResult: body,
-        syncedAt: new Date().toISOString()
-      }
+        token
+      },
+      quantumLastCaffeineResult: null
     });
-    const tradeId = body?.tradeId || body?.entryId || body?.id;
-    setStatus(tradeId ? `Sent to Caffeine. Draft ${tradeId}.` : `Sent to Caffeine. Response: ${JSON.stringify(body || { ok: true })}`);
+    await chrome.tabs.create({ url: `${endpoint}/journal?quantumCapture=pending` });
+    pollCaffeineResult();
+    setStatus("Caffeine opened. If you are signed in, the app will create the draft.");
   } finally {
-    clearTimeout(timeout);
     els.send.disabled = false;
   }
+}
+
+async function pollCaffeineResult() {
+  const started = Date.now();
+  const timer = setInterval(async () => {
+    const result = await chrome.storage.local.get("quantumLastCaffeineResult");
+    const value = result.quantumLastCaffeineResult;
+    if (value?.receivedAt && Date.now() - Date.parse(value.receivedAt) < 30000) {
+      clearInterval(timer);
+      if (value.ok) {
+        setStatus(`Caffeine imported draft trade ${value.tradeId}.`);
+      } else {
+        setStatus(`Caffeine import failed: ${value.error || "unknown error"}`);
+      }
+      return;
+    }
+    if (Date.now() - started > 30000) {
+      clearInterval(timer);
+      setStatus("Still waiting for Caffeine. Make sure the app tab is signed in and refreshed.");
+    }
+  }, 1000);
 }
 
 function useChartPrice(target) {

@@ -36,7 +36,7 @@ main {
 }
 
 header,
-.connection,
+.statusbar,
 .notice,
 .fields,
 .toolbar,
@@ -47,6 +47,39 @@ footer {
   border-radius: 8px;
   background: var(--panel);
   padding: 10px;
+}
+
+.statusbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.08);
+}
+
+.statusbar > div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.connectionDetails {
+  min-width: min(520px, 80vw);
+}
+
+.connectionDetails summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.connection {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(160px, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+  margin-top: 8px;
 }
 
 .notice {
@@ -134,15 +167,10 @@ button.tool.active {
   color: #134e4a;
 }
 
-.connection,
 .fields {
   display: grid;
   grid-template-columns: repeat(4, minmax(130px, 1fr));
   gap: 10px;
-}
-
-.connection label:first-child {
-  grid-column: span 2;
 }
 
 .toolbar,
@@ -194,7 +222,6 @@ footer {
 }
 
 #status {
-  flex-basis: 100%;
   color: var(--accent);
   font-weight: 700;
   white-space: pre-wrap;
@@ -213,13 +240,10 @@ footer {
     min-width: 320px;
   }
 
+  .statusbar,
   .connection,
   .fields,
   .notes {
     grid-template-columns: 1fr;
-  }
-
-  .connection label:first-child {
-    grid-column: auto;
   }
 }

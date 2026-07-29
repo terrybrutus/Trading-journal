@@ -58,7 +58,7 @@ export function Settings() {
     }
   };
 
-  const endpointUrl = `${window.location.origin}/api/capture`;
+  const endpointUrl = window.location.origin;
 
   // --- OpenAI API key (voice-to-field routing) ---
   const [apiKey, setApiKey] = useState("");
@@ -311,8 +311,8 @@ export function Settings() {
         <CardHeader>
           <CardTitle>Chrome Extension</CardTitle>
           <CardDescription>
-            A browser extension that lives on TradingView and turns a finished
-            trade into a draft journal entry — automatically.
+            A browser extension that lives on TradingView and hands finished
+            trade captures to the logged-in Caffeine app.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5 text-sm">
@@ -343,8 +343,8 @@ export function Settings() {
             </div>
             <p className="text-muted-foreground">
               When you trigger the extension on a TradingView chart, it gathers
-              the details above and sends them to Bias Journal using your API
-              token. Bias Journal creates a{" "}
+              the details above, opens this Caffeine app, and hands the capture
+              to the app using your API token. Bias Journal creates a{" "}
               <span className="font-medium text-foreground">draft trade</span>{" "}
               pre-filled with the symbol, direction, prices, size, realized
               P&amp;L, and reflection notes. The draft is yours to review and
@@ -366,7 +366,7 @@ export function Settings() {
 
           <div className="space-y-1">
             <div className="text-xs uppercase tracking-wide text-muted-foreground">
-              Endpoint URL
+              Caffeine app URL
             </div>
             <Input
               readOnly
@@ -378,18 +378,20 @@ export function Settings() {
 
           <div className="space-y-1">
             <div className="text-xs uppercase tracking-wide text-muted-foreground">
-              Method
+              Import method
             </div>
-            <div className="font-mono text-xs">POST</div>
+            <div className="font-mono text-xs">
+              Extension bridge to logged-in app
+            </div>
           </div>
 
           <div className="space-y-1">
             <div className="text-xs uppercase tracking-wide text-muted-foreground">
-              Headers
+              Authentication
             </div>
             <pre className="overflow-x-auto rounded-md bg-muted p-3 font-mono text-xs">
-              {`Authorization: Bearer <your-api-token>
-Content-Type: application/json`}
+              {`Paste the API token into the extension.
+The extension passes it to the Caffeine app bridge.`}
             </pre>
           </div>
 
