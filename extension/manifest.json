@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "QUANTUM TradingView Capture",
+  "description": "Capture TradingView charts, annotate them, and send draft trades to QUANTUM Bias Journal.",
+  "version": "0.1.0",
+  "action": {
+    "default_title": "QUANTUM Capture",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.tradingview.com/*", "https://*.tradingview.com/*"],
+      "js": ["content.js"],
+      "css": ["content.css"]
+    }
+  ],
+  "permissions": ["activeTab", "storage", "tabs"],
+  "host_permissions": [
+    "https://www.tradingview.com/*",
+    "https://*.tradingview.com/*",
+    "https://*.caffeine.xyz/*"
+  ]
+}

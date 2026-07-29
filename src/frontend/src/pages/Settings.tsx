@@ -353,6 +353,17 @@ export function Settings() {
             </p>
           </div>
 
+          <div className="space-y-2 rounded-md border border-border/60 bg-muted/30 p-3">
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">
+              Repo location
+            </div>
+            <p className="text-muted-foreground">
+              The unpacked extension source lives in{" "}
+              <code className="font-mono">extension/</code> in this GitHub
+              export. Load that folder in Chrome on Windows or macOS.
+            </p>
+          </div>
+
           <div className="space-y-1">
             <div className="text-xs uppercase tracking-wide text-muted-foreground">
               Endpoint URL

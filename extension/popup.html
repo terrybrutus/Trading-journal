@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>QUANTUM Capture</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>QUANTUM Capture</h1>
+        <p>Annotate the visible chart and send it to Bias Journal as a draft.</p>
+      </header>
+
+      <section class="connection">
+        <label>
+          Endpoint
+          <input id="endpoint" type="url" placeholder="https://your-site.caffeine.xyz/api/capture">
+        </label>
+        <label>
+          API token
+          <input id="token" type="password" placeholder="Paste token from Settings">
+        </label>
+        <button id="saveConnection" type="button">Save connection</button>
+      </section>
+
+      <section class="fields">
+        <label>
+          Symbol
+          <input id="symbol" placeholder="USTEC, EURUSD, AAPL">
+        </label>
+        <label>
+          Direction
+          <select id="direction">
+            <option value="">Select</option>
+            <option value="long">Long</option>
+            <option value="short">Short</option>
+          </select>
+        </label>
+        <label>
+          Trade occurred
+          <input id="tradeOccurredAt" type="datetime-local">
+        </label>
+        <label>
+          Entry price
+          <input id="entryPrice" inputmode="decimal">
+        </label>
+        <label>
+          Exit price
+          <input id="exitPrice" inputmode="decimal">
+        </label>
+        <label>
+          Size
+          <input id="size" inputmode="decimal">
+        </label>
+        <label>
+          Realized P/L
+          <input id="realizedPnl" inputmode="decimal">
+        </label>
+        <label>
+          Bucket
+          <input id="bucket" placeholder="Backtest, Live, NY AM">
+        </label>
+      </section>
+
+      <section class="toolbar">
+        <button class="tool active" data-tool="pen" type="button">Pen</button>
+        <button class="tool" data-tool="highlighter" type="button">Highlighter</button>
+        <button class="tool" data-tool="box" type="button">Box</button>
+        <button class="tool" data-tool="text" type="button">Text</button>
+        <input id="color" type="color" value="#ef4444" title="Color">
+        <input id="width" type="range" min="2" max="18" value="5" title="Stroke width">
+        <button id="undo" type="button">Undo</button>
+      </section>
+
+      <div class="canvasWrap">
+        <canvas id="canvas" width="1280" height="720"></canvas>
+      </div>
+
+      <section class="notes">
+        <label>
+          Reflection notes
+          <textarea id="notes" rows="4" placeholder="What happened? What did you learn?"></textarea>
+        </label>
+        <label>
+          Transcript
+          <textarea id="transcript" rows="3" placeholder="Optional transcript"></textarea>
+        </label>
+      </section>
+
+      <section class="audio">
+        <button id="record" type="button">Record audio</button>
+        <button id="stop" type="button" disabled>Stop</button>
+        <button id="speech" type="button">Start transcript</button>
+        <audio id="audio" controls></audio>
+      </section>
+
+      <footer>
+        <button id="capture" type="button">Capture current tab</button>
+        <button id="send" type="button">Send to Caffeine</button>
+        <button id="exportJson" type="button">Export JSON</button>
+        <span id="status" role="status"></span>
+      </footer>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

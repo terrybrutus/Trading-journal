@@ -1,0 +1,19 @@
+.quantum-capture-button {
+  position: fixed;
+  right: 18px;
+  bottom: 88px;
+  z-index: 2147483647;
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 6px;
+  background: #101827;
+  color: #f8fafc;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.32);
+  font: 700 13px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  cursor: pointer;
+}
+
+.quantum-capture-button:hover {
+  background: #0f766e;
+}
