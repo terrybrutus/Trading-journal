@@ -1,0 +1,331 @@
+// Version: 4.0.0
+type AccessControlState__836714403 =
+  {
+    var adminAssigned : Bool;
+    userRoles : Map__222667396<Principal, UserRole__686137147>
+  };
+type ApiToken__572071800 = {createdAtNs : Int; tokenHash : Text};
+type AudioRecap__70771988 =
+  {
+    audioStorageKey : Text;
+    durationSecs : Nat;
+    id : Nat;
+    recordedAtNs : Int;
+    tradeId : Nat;
+    transcript : Text
+  };
+type AudioRow__305280063 =
+  {
+    audioStorageKey : Text;
+    durationSecs : Nat;
+    id : Nat;
+    recordedAtNs : Int;
+    tradeId : Nat;
+    transcript : Text
+  };
+type AudioRow__389622906 =
+  {
+    audioStorageKey : Text;
+    durationSecs : Nat;
+    id : Nat;
+    recordedAtNs : Int;
+    tradeId : Nat;
+    transcript : Text
+  };
+type ChartMetadata__413067537 =
+  {price : ?Float; symbol : ?Text; timeframe : ?Text};
+type CounterReason__1066782720 = {text : Text};
+type Data__80296667<K, V> =
+  {var count : Nat__1040412405; kvs : [var ?(K, V)]};
+type Direction__511027423 = {#long; #short};
+type EmotionalSnapshot__12337984 =
+  {capturedAtNs : Int; note : Text; state : EmotionalState__225704735};
+type EmotionalState__225704735 =
+  {#anxious; #calm; #euphoric; #fearful; #greedy; #neutral};
+type EmotionalState__244255224 =
+  {#anxious; #calm; #euphoric; #fearful; #greedy; #neutral};
+type EmotionalState__765040326 =
+  {#anxious; #calm; #euphoric; #fearful; #greedy; #neutral};
+type Internal__41346355<K, V> =
+  {children : [var ?Node__1000929467<K, V>]; data : Data__80296667<K, V>};
+type Leaf__712614010<K, V> = {data : Data__80296667<K, V>};
+type List__529703492<T> =
+  {
+    var blockIndex : Nat__1040412405;
+    var blocks : [var [var ?T]];
+    var elementIndex : Nat__1040412405
+  };
+type List__560604548<T> = List__529703492<T>;
+type Map__222667396<K, V> = Map__912772452<K, V>;
+type Map__709709801<K, V> =
+  {var root : Node__1000929467<K, V>; var size : Nat__1040412405};
+type Map__912772452<K, V> = Map__709709801<K, V>;
+type MediaRow__1025346719 =
+  {
+    caption : ?Text;
+    chartMetadata : ?{price : ?Float; symbol : ?Text; timeframe : ?Text};
+    id : Nat;
+    mediaType : {#annotatedImage; #gif; #screenshot; #videoClip};
+    originalStorageKey : ?Text;
+    source : {#chromeExtension; #userUpload};
+    storageKey : Text;
+    tradeId : Nat;
+    uploadedAtNs : Int
+  };
+type MediaRow__686989742 =
+  {
+    caption : ?Text;
+    chartMetadata : ?{price : ?Float; symbol : ?Text; timeframe : ?Text};
+    id : Nat;
+    mediaType : {#annotatedImage; #gif; #screenshot; #videoClip};
+    originalStorageKey : ?Text;
+    source : {#chromeExtension; #userUpload};
+    storageKey : Text;
+    tradeId : Nat;
+    uploadedAtNs : Int
+  };
+type MediaType__57038377 = {#annotatedImage; #gif; #screenshot; #videoClip};
+type Media__757430466 =
+  {
+    caption : ?Text;
+    chartMetadata : ?ChartMetadata__413067537;
+    id : Nat;
+    mediaType : MediaType__57038377;
+    originalStorageKey : ?Text;
+    source : {#chromeExtension; #userUpload};
+    storageKey : Text;
+    tradeId : Nat;
+    uploadedAtNs : Int
+  };
+type Nat__1040412405 = Nat__920180692;
+type Nat__920180692 = Nat;
+type NewActor__454194852 =
+  {
+    accessControlState : AccessControlState__836714403;
+    apiTokens : Map__222667396<Principal, TokenRow__870051161>;
+    audioByTrade : Map__222667396<Nat, List__560604548<AudioRow__305280063>>;
+    mediaByTrade : Map__222667396<Nat, List__560604548<MediaRow__1025346719>>;
+    skippedTrades : Map__222667396<Nat, SkippedRow__583914574>;
+    tradeState : TradeState__11984102;
+    trades : Map__222667396<Nat, NewTradeRow__683609414>
+  };
+type NewActor__712482421 =
+  {
+    accessControlState : AccessControlState__836714403;
+    apiTokens : Map__222667396<Principal, TokenRow__205987173>;
+    audioByTrade : Map__222667396<Nat, List__560604548<AudioRow__389622906>>;
+    mediaByTrade : Map__222667396<Nat, List__560604548<MediaRow__686989742>>;
+    skippedTrades : Map__222667396<Nat, SkippedRow__543191039>;
+    tradeState : TradeState__736486803;
+    trades : Map__222667396<Nat, TradeRow__714933928>
+  };
+type NewTradeRow__683609414 =
+  {
+    confidenceRating : Nat;
+    createdAtNs : Int;
+    direction : {#long; #short};
+    duringTradeEmotion :
+      ?{capturedAtNs : Int; note : Text; state : EmotionalState__244255224};
+    entryAtNs : Int;
+    entryPrice : Float;
+    exitAtNs : ?Int;
+    exitPrice : ?Float;
+    holdTimeSecs : ?Nat;
+    id : Nat;
+    isDraft : Bool;
+    originSourceNote : ?Text;
+    outcomeReasoning : ?Text;
+    owner : Principal;
+    positionSize : Float;
+    preSessionEmotion :
+      {capturedAtNs : Int; note : Text; state : EmotionalState__244255224};
+    preTradeThesis : {counterReasons : [{text : Text}]; thesis : Text};
+    realizedPnl : ?Float;
+    shareableUrl : ?Text;
+    symbol : Text;
+    tradeOrigin : {#selfGenerated; #sociallyInfluenced};
+    updatedAtNs : Int
+  };
+type Node__1000929467<K, V> =
+  {#internal : Internal__41346355<K, V>; #leaf : Leaf__712614010<K, V>};
+type OldActor__120828250 =
+  {
+    accessControlState : AccessControlState__836714403;
+    apiTokens : Map__222667396<Principal, TokenRow__870051161>;
+    audioByTrade : Map__222667396<Nat, List__560604548<AudioRow__305280063>>;
+    mediaByTrade : Map__222667396<Nat, List__560604548<MediaRow__1025346719>>;
+    skippedTrades : Map__222667396<Nat, SkippedRow__583914574>;
+    tradeState : TradeState__11984102;
+    trades : Map__222667396<Nat, OldTradeRow__511558448>
+  };
+type OldActor__39218976 = {};
+type OldTradeRow__511558448 =
+  {
+    confidenceRating : Nat;
+    createdAtNs : Int;
+    direction : {#long; #short};
+    duringTradeEmotion :
+      ?{capturedAtNs : Int; note : Text; state : EmotionalState__244255224};
+    entryAtNs : Int;
+    entryPrice : Float;
+    exitAtNs : ?Int;
+    exitPrice : ?Float;
+    holdTimeSecs : ?Nat;
+    id : Nat;
+    isDraft : Bool;
+    originSourceNote : ?Text;
+    outcomeReasoning : ?Text;
+    owner : Principal;
+    positionSize : Float;
+    preSessionEmotion :
+      {capturedAtNs : Int; note : Text; state : EmotionalState__244255224};
+    preTradeThesis : {bearCaseReasons : [{text : Text}]; bullThesis : Text};
+    realizedPnl : ?Float;
+    symbol : Text;
+    tradeOrigin : {#selfGenerated; #sociallyInfluenced};
+    updatedAtNs : Int
+  };
+type PreTradeThesis__247761055 =
+  {counterReasons : [CounterReason__1066782720]; thesis : Text};
+type SkippedRow__543191039 =
+  {
+    fomoTagged : Bool;
+    id : Nat;
+    note : Text;
+    owner : Principal;
+    skippedAtNs : Int;
+    symbol : Text;
+    theoreticalPnl : ?Float
+  };
+type SkippedRow__583914574 =
+  {
+    fomoTagged : Bool;
+    id : Nat;
+    note : Text;
+    owner : Principal;
+    skippedAtNs : Int;
+    symbol : Text;
+    theoreticalPnl : ?Float
+  };
+type SkippedTrade__1019128056 =
+  {
+    fomoTagged : Bool;
+    id : Nat;
+    note : Text;
+    owner : Principal;
+    skippedAtNs : Int;
+    symbol : Text;
+    theoreticalPnl : ?Float
+  };
+type TokenRow__205987173 = {createdAtNs : Int; tokenHash : Text};
+type TokenRow__870051161 = {createdAtNs : Int; tokenHash : Text};
+type TradeOrigin__518882232 = {#selfGenerated; #sociallyInfluenced};
+type TradeRow__714933928 =
+  {
+    confidenceRating : Nat;
+    createdAtNs : Int;
+    direction : {#long; #short};
+    duringTradeEmotion :
+      ?{capturedAtNs : Int; note : Text; state : EmotionalState__765040326};
+    entryAtNs : Int;
+    entryPrice : Float;
+    exitAtNs : ?Int;
+    exitPrice : ?Float;
+    holdTimeSecs : ?Nat;
+    id : Nat;
+    isDraft : Bool;
+    originSourceNote : ?Text;
+    outcomeReasoning : ?Text;
+    owner : Principal;
+    positionSize : Float;
+    preSessionEmotion :
+      {capturedAtNs : Int; note : Text; state : EmotionalState__765040326};
+    preTradeThesis : {bearCaseReasons : [{text : Text}]; bullThesis : Text};
+    realizedPnl : ?Float;
+    symbol : Text;
+    tradeOrigin : {#selfGenerated; #sociallyInfluenced};
+    updatedAtNs : Int
+  };
+type TradeState__11984102 =
+  {
+    var nextAudioId : Nat;
+    var nextMediaId : Nat;
+    var nextSkippedTradeId : Nat;
+    var nextTradeId : Nat
+  };
+type TradeState__736486803 =
+  {
+    var nextAudioId : Nat;
+    var nextMediaId : Nat;
+    var nextSkippedTradeId : Nat;
+    var nextTradeId : Nat
+  };
+type Trade__832295503 =
+  {
+    confidenceRating : Nat;
+    createdAtNs : Int;
+    direction : Direction__511027423;
+    duringTradeEmotion : ?EmotionalSnapshot__12337984;
+    entryAtNs : Int;
+    entryPrice : Float;
+    exitAtNs : ?Int;
+    exitPrice : ?Float;
+    holdTimeSecs : ?Nat;
+    id : Nat;
+    isDraft : Bool;
+    originSourceNote : ?Text;
+    outcomeReasoning : ?Text;
+    owner : Principal;
+    positionSize : Float;
+    preSessionEmotion : EmotionalSnapshot__12337984;
+    preTradeThesis : PreTradeThesis__247761055;
+    realizedPnl : ?Float;
+    shareableUrl : ?Text;
+    symbol : Text;
+    tradeOrigin : TradeOrigin__518882232;
+    updatedAtNs : Int
+  };
+type UserRole__686137147 = {#admin; #guest; #user};
+{
+  "20260721_000000" : (_old : OldActor__39218976) -> NewActor__712482421;
+  "20260721_000001" : (old : OldActor__120828250) -> NewActor__454194852
+}
+actor  {
+  stable accessControlState :
+    {
+      var adminAssigned : Bool;
+      userRoles : Map__222667396<Principal, UserRole__686137147>
+    };
+  stable apiTokens :
+    {
+      var root : Node__1000929467<Principal, ApiToken__572071800>;
+      var size : Nat__1040412405
+    };
+  stable audioByTrade :
+    {
+      var root : Node__1000929467<Nat, List__560604548<AudioRecap__70771988>>;
+      var size : Nat__1040412405
+    };
+  stable mediaByTrade :
+    {
+      var root : Node__1000929467<Nat, List__560604548<Media__757430466>>;
+      var size : Nat__1040412405
+    };
+  stable skippedTrades :
+    {
+      var root : Node__1000929467<Nat, SkippedTrade__1019128056>;
+      var size : Nat__1040412405
+    };
+  stable tradeState :
+    {
+      var nextAudioId : Nat;
+      var nextMediaId : Nat;
+      var nextSkippedTradeId : Nat;
+      var nextTradeId : Nat
+    };
+  stable trades :
+    {
+      var root : Node__1000929467<Nat, Trade__832295503>;
+      var size : Nat__1040412405
+    }
+};

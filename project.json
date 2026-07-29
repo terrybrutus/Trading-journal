@@ -1,0 +1,20 @@
+{
+  "overview": "A trading journal that logs trades with direction-aware thesis and counter-thesis, captures trades from TradingView via Chrome extension, and lets you speak trades freely into a universal AI voice mic that routes your words into the right fields.",
+  "features": [
+    "Direction-aware thesis and counter-thesis labels that adapt to long or short trades",
+    "Human-readable dropdown values throughout the app",
+    "Chrome extension that captures symbol, direction, prices, size, P&L, and notes from TradingView into a clean draft",
+    "Universal AI voice mic that transcribes free speech and routes it into the correct form fields for review",
+    "Per-entry shareable URLs for every journal trade",
+    "Existing sidebar, journal list, dashboard, and analytics preserved"
+  ],
+  "category": "productivity",
+  "tags": [
+    "trading",
+    "journal",
+    "voice",
+    "chrome-extension",
+    "analytics"
+  ],
+  "last_updated": "2026-07-21T18:51:55.536Z"
+}

@@ -1,0 +1,375 @@
+type _ImmutableObjectStorageRefillResult = 
+ record {
+   success: opt bool;
+   topped_up_amount: opt nat;
+ };
+type _ImmutableObjectStorageRefillInformation = record {
+                                                  proposed_top_up_amount:
+                                                   opt nat;};
+type _ImmutableObjectStorageCreateCertificateResult = 
+ record {
+   blob_hash: text;
+   method: text;
+ };
+type Value = 
+ variant {
+   "bool": bool;
+   float: float64;
+   "int": int;
+   "nat": nat;
+   "null";
+   "text": text;
+ };
+type UserRole = 
+ variant {
+   admin;
+   guest;
+   user;
+ };
+type TradeOrigin = 
+ variant {
+   selfGenerated;
+   sociallyInfluenced;
+ };
+type TradeListFilter = 
+ record {
+   dateFromNs: opt int;
+   dateToNs: opt int;
+   emotionalState: opt EmotionalState;
+   originTag: opt TradeOrigin;
+   sortBy: variant {
+             dateAsc;
+             dateDesc;
+             pnlAsc;
+             pnlDesc;
+           };
+   symbolQuery: opt text;
+ };
+type Trade = 
+ record {
+   confidenceRating: nat;
+   createdAtNs: int;
+   direction: Direction;
+   duringTradeEmotion: opt EmotionalSnapshot;
+   entryAtNs: int;
+   entryPrice: float64;
+   exitAtNs: opt int;
+   exitPrice: opt float64;
+   holdTimeSecs: opt nat;
+   id: nat;
+   isDraft: bool;
+   originSourceNote: opt text;
+   outcomeReasoning: opt text;
+   owner: principal;
+   positionSize: float64;
+   preSessionEmotion: EmotionalSnapshot;
+   preTradeThesis: PreTradeThesis;
+   realizedPnl: opt float64;
+   shareableUrl: opt text;
+   symbol: text;
+   tradeOrigin: TradeOrigin;
+   updatedAtNs: int;
+ };
+type TargetedFix = 
+ record {
+   suggestion: text;
+   "type": BiasSignatureType;
+ };
+type StrategyBaselineAnalysis = 
+ record {
+   historicalProfitFactor: opt float64;
+   historicalWinRate: opt float64;
+   profitFactor: float64;
+   statusQuoBiasFlag: bool;
+   winRate: float64;
+ };
+type SkippedTrade = 
+ record {
+   fomoTagged: bool;
+   id: nat;
+   note: text;
+   owner: principal;
+   skippedAtNs: int;
+   symbol: text;
+   theoreticalPnl: opt float64;
+ };
+type SelfAssessment = 
+ record {
+   categorizedTrades: vec BiasCategoryCount;
+   progressTo20: nat;
+   progressTo50: nat;
+   topBiases: vec BiasSignatureType;
+ };
+type Result__1 = 
+ variant {
+   err: Error;
+   ok;
+ };
+type Result = 
+ record {
+   hasMore: bool;
+   rows: vec vec Cell;
+ };
+type PreTradeThesis = 
+ record {
+   counterReasons: vec CounterReason;
+   thesis: text;
+ };
+type MediaType = 
+ variant {
+   annotatedImage;
+   gif;
+   screenshot;
+   videoClip;
+ };
+type Media = 
+ record {
+   caption: opt text;
+   chartMetadata: opt ChartMetadata;
+   id: nat;
+   mediaType: MediaType;
+   originalStorageKey: opt text;
+   source: variant {
+             chromeExtension;
+             userUpload;
+           };
+   storageKey: text;
+   tradeId: nat;
+   uploadedAtNs: int;
+ };
+type HoldTimeAnalysis = 
+ record {
+   avgLoserHoldSecs: opt nat;
+   avgWinnerHoldSecs: opt nat;
+   lossAversionFlag: bool;
+ };
+type ExtensionCapture = 
+ record {
+   caption: opt text;
+   direction: opt Direction;
+   entryPrice: opt float64;
+   exitPrice: opt float64;
+   mediaStorageKey: text;
+   mediaType: MediaType;
+   outcomeNotes: opt text;
+   price: opt float64;
+   realizedPnl: opt float64;
+   size: opt float64;
+   symbol: opt text;
+   targetTradeId: opt nat;
+   timeframe: opt text;
+   token: text;
+ };
+type Error = 
+ variant {
+   AmbiguousAttribute: record {
+                         field: text;
+                         sources: vec text;
+                       };
+   FrontendOriginMismatch: record {
+                             expected: vec text;
+                             got: text;
+                           };
+   FrontendOriginsNotConfigured;
+   MalformedCandid;
+   MissingField: text;
+   MixedSsoSources: record {
+                      otherKeys: vec text;
+                      ssoKeys: vec text;
+                    };
+   NoAttributes;
+   Stale: record {ageNs: nat;};
+   UnknownNonce;
+   UntrustedSsoSource: record {domain: text;};
+ };
+type EmotionalState = 
+ variant {
+   anxious;
+   calm;
+   euphoric;
+   fearful;
+   greedy;
+   neutral;
+ };
+type EmotionalSnapshot = 
+ record {
+   capturedAtNs: int;
+   note: text;
+   state: EmotionalState;
+ };
+type Direction = 
+ variant {
+   long;
+   short;
+ };
+type DailyTradeSummary = 
+ record {
+   bearCasePresent: bool;
+   confidenceRating: nat;
+   direction: Direction;
+   enteredAtNs: int;
+   realizedPnl: opt float64;
+   symbol: text;
+   tradeId: nat;
+ };
+type CounterReason = record {"text": text;};
+type ConfidenceOutcomeAnalysis = 
+ record {
+   correlation: float64;
+   overconfidenceFlag: bool;
+ };
+type ChartMetadata = 
+ record {
+   price: opt float64;
+   symbol: opt text;
+   timeframe: opt text;
+ };
+type Cell = 
+ record {
+   name: text;
+   value: Value;
+ };
+type CaptureResult = 
+ record {
+   mediaId: nat;
+   tradeId: nat;
+   wasDraftCreated: bool;
+ };
+type BiasSignatureType = 
+ variant {
+   confirmationBias;
+   dispositionEffect;
+   fomoRegret;
+   herdMentality;
+   hotHandFallacy;
+   lossAversion;
+   overconfidence;
+   statusQuoBias;
+ };
+type BiasSignature = 
+ record {
+   description: text;
+   tradeIds: vec nat;
+   "type": BiasSignatureType;
+ };
+type BiasCategoryCount = 
+ record {
+   count: nat;
+   preventableLossEstimate: float64;
+   "type": BiasSignatureType;
+ };
+type AudioRecap = 
+ record {
+   audioStorageKey: text;
+   durationSecs: nat;
+   id: nat;
+   recordedAtNs: int;
+   tradeId: nat;
+   transcript: text;
+ };
+service : {
+  _immutableObjectStorageBlobsAreLive: (hashes: vec blob) -> (vec bool) query;
+  _immutableObjectStorageBlobsToDelete: () -> (vec blob) query;
+  _immutableObjectStorageConfirmBlobDeletion: (blobs: vec blob) -> ();
+  _immutableObjectStorageCreateCertificate: (blobHash: text) ->
+   (_ImmutableObjectStorageCreateCertificateResult);
+  _immutableObjectStorageRefillCashier: (refillInformation:
+   opt _ImmutableObjectStorageRefillInformation) ->
+   (_ImmutableObjectStorageRefillResult);
+  _immutableObjectStorageUpdateGatewayPrincipals: () -> ();
+  _initialize_access_control: () -> ();
+  _internet_identity_sign_in_finish: () -> (Result__1);
+  _internet_identity_sign_in_start: () -> (blob);
+  addAudioRecapToTrade: (tradeId: nat, recap:
+   record {
+     audioStorageKey: text;
+     durationSecs: nat;
+     transcript: text;
+   }) -> (AudioRecap);
+  addMediaToTrade: (tradeId: nat, media:
+   record {
+     caption: opt text;
+     chartMetadata: opt ChartMetadata;
+     mediaType: MediaType;
+     originalStorageKey: opt text;
+     storageKey: text;
+   }) -> (Media);
+  addSkippedTrade: (input:
+   record {
+     fomoTagged: bool;
+     note: text;
+     symbol: text;
+     theoreticalPnl: opt float64;
+   }) -> (SkippedTrade);
+  assignCallerUserRole: (user: principal, role: UserRole) -> ();
+  createTrade: (input:
+   record {
+     confidenceRating: nat;
+     direction: Direction;
+     duringTradeEmotion: opt EmotionalSnapshot;
+     entryAtNs: int;
+     entryPrice: float64;
+     exitAtNs: opt int;
+     exitPrice: opt float64;
+     isDraft: bool;
+     originSourceNote: opt text;
+     outcomeReasoning: opt text;
+     positionSize: float64;
+     preSessionEmotion: EmotionalSnapshot;
+     preTradeThesis: PreTradeThesis;
+     realizedPnl: opt float64;
+     symbol: text;
+     tradeOrigin: TradeOrigin;
+   }) -> (nat);
+  deleteMedia: (tradeId: nat, mediaId: nat) -> (bool);
+  deleteTrade: (tradeId: nat) -> (bool);
+  execute: (qJson: text) -> (Result) query;
+  generateApiToken: () -> (text);
+  getCallerUserRole: () -> (UserRole) query;
+  getDailySummary: (dayStartNs: int) -> (vec DailyTradeSummary) query;
+  getMonthlyConfidenceOutcome: (monthStartNs: int, monthEndNs: int) ->
+   (ConfidenceOutcomeAnalysis) query;
+  getMonthlyFomoAnalysis: (monthStartNs: int, monthEndNs: int) ->
+   (record {
+      fomoTaggedTradeIds: vec nat;
+      skippedTrades: vec SkippedTrade;
+      theoreticalPnlTotal: float64;
+    }) query;
+  getMonthlyHoldTimeAnalysis: (monthStartNs: int, monthEndNs: int) ->
+   (HoldTimeAnalysis) query;
+  getMonthlyStrategyBaseline: (monthStartNs: int, monthEndNs: int) ->
+   (StrategyBaselineAnalysis) query;
+  getSelfAssessment: () -> (SelfAssessment) query;
+  getTargetedFixes: (biasTypes: vec BiasSignatureType) ->
+   (vec TargetedFix) query;
+  getTrade: (tradeId: nat) -> (opt Trade) query;
+  getWeeklySignatures: (weekStartNs: int, weekEndNs: int) ->
+   (vec BiasSignature) query;
+  hasApiToken: () -> (bool) query;
+  isCallerAdmin: () -> (bool) query;
+  listAudioRecapsForTrade: (tradeId: nat) -> (vec AudioRecap) query;
+  listMediaForTrade: (tradeId: nat) -> (vec Media) query;
+  listSkippedTrades: (limit: nat, offset: nat) ->
+   (record {
+      items: vec SkippedTrade;
+      total: nat;
+    }) query;
+  listTrades: (filter: TradeListFilter, limit: nat, offset: nat) ->
+   (record {
+      items: vec Trade;
+      total: nat;
+    }) query;
+  receiveExtensionCapture: (capture: ExtensionCapture) -> (CaptureResult);
+  regenerateApiToken: () -> (text);
+  schema: () -> (text) query;
+  updateTrade: (tradeId: nat, updates:
+   record {
+     confidenceRating: opt nat;
+     duringTradeEmotion: opt EmotionalSnapshot;
+     exitAtNs: opt int;
+     exitPrice: opt float64;
+     isDraft: opt bool;
+     outcomeReasoning: opt text;
+     realizedPnl: opt float64;
+   }) -> (Trade);
+}
