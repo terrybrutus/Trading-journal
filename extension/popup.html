@@ -10,7 +10,7 @@
     <main>
       <header>
         <h1>QUANTUM Capture</h1>
-        <p>Annotate the visible chart and send it to Bias Journal as a draft.</p>
+        <p>Annotate the visible chart and send it to Bias Journal as a draft. If audio is blocked, enable microphone access for this extension in Chrome site settings.</p>
       </header>
 
       <section class="connection">
@@ -29,6 +29,14 @@
         <label>
           Symbol
           <input id="symbol" placeholder="USTEC, EURUSD, AAPL">
+        </label>
+        <label>
+          Timeframe
+          <input id="timeframe" placeholder="5, 15, 1H, 1D">
+        </label>
+        <label>
+          Chart price
+          <input id="price" inputmode="decimal">
         </label>
         <label>
           Direction
@@ -98,6 +106,7 @@
 
       <footer>
         <button id="capture" type="button">Capture current tab</button>
+        <button id="autofill" type="button">Auto-fill from TradingView</button>
         <button id="send" type="button">Send to Caffeine</button>
         <button id="exportJson" type="button">Export JSON</button>
         <span id="status" role="status"></span>

@@ -13,9 +13,14 @@
   box-sizing: border-box;
 }
 
+html,
 body {
-  width: min(980px, 100vw);
-  min-width: 380px;
+  min-height: 100%;
+}
+
+body {
+  width: 100%;
+  min-width: 0;
   margin: 0;
   background: var(--bg);
   color: var(--ink);
@@ -25,6 +30,8 @@ body {
 main {
   display: grid;
   gap: 12px;
+  width: min(1180px, 100%);
+  margin: 0 auto;
   padding: 14px;
 }
 
@@ -95,6 +102,7 @@ button:disabled {
 
 button.tool,
 #capture,
+#autofill,
 #exportJson,
 #saveConnection,
 #undo,
@@ -172,8 +180,10 @@ footer {
 }
 
 #status {
+  flex-basis: 100%;
   color: var(--accent);
   font-weight: 700;
+  white-space: pre-wrap;
 }
 
 @media (max-width: 760px) {

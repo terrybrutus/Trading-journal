@@ -5,6 +5,8 @@ const els = {
   token: document.getElementById("token"),
   saveConnection: document.getElementById("saveConnection"),
   symbol: document.getElementById("symbol"),
+  timeframe: document.getElementById("timeframe"),
+  price: document.getElementById("price"),
   direction: document.getElementById("direction"),
   tradeOccurredAt: document.getElementById("tradeOccurredAt"),
   entryPrice: document.getElementById("entryPrice"),
@@ -19,6 +21,7 @@ const els = {
   width: document.getElementById("width"),
   undo: document.getElementById("undo"),
   capture: document.getElementById("capture"),
+  autofill: document.getElementById("autofill"),
   send: document.getElementById("send"),
   exportJson: document.getElementById("exportJson"),
   record: document.getElementById("record"),
@@ -46,9 +49,11 @@ let recognition = null;
 function setStatus(message) {
   els.status.textContent = message;
   clearTimeout(setStatus.timer);
-  setStatus.timer = setTimeout(() => {
-    els.status.textContent = "";
-  }, 4200);
+  if (!/failed|error|HTTP|denied|blocked|Sent/i.test(message)) {
+    setStatus.timer = setTimeout(() => {
+      els.status.textContent = "";
+    }, 4200);
+  }
 }
 
 function toLocalInput(date = new Date()) {
@@ -189,6 +194,7 @@ function currentEntry() {
   const tradeOccurredAt = fromLocalInput(els.tradeOccurredAt.value);
   const entryPrice = numberOrNull(els.entryPrice.value);
   const exitPrice = numberOrNull(els.exitPrice.value);
+  const price = numberOrNull(els.price.value);
   const size = numberOrNull(els.size.value);
   const realizedPnl = numberOrNull(els.realizedPnl.value);
   const notes = els.notes.value.trim();
@@ -205,6 +211,8 @@ function currentEntry() {
     bucket: els.bucket.value.trim(),
     symbol: els.symbol.value.trim(),
     ticker: els.symbol.value.trim(),
+    timeframe: els.timeframe.value.trim() || null,
+    price,
     direction: els.direction.value || null,
     entryPrice,
     exitPrice,
@@ -237,6 +245,34 @@ async function saveConnection() {
   setStatus("Connection saved.");
 }
 
+async function autofillFromActiveTradingViewTab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id || !/^https:\/\/([^/]+\.)?tradingview\.com\//i.test(tab.url || "")) {
+    setStatus("Open a TradingView tab, then click Auto-fill.");
+    return;
+  }
+
+  const [result] = await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    func: () => {
+      const title = document.title || "";
+      const titleMatch = title.match(/^([A-Z0-9:_\-.]+)/i);
+      const symbol = titleMatch ? titleMatch[1].replace(/^.*:/, "") : "";
+      const price = title.match(/\b(\d+(?:\.\d+)?)\b/)?.[1] || "";
+      const timeframe = [...document.querySelectorAll("button, [role=button], [data-name]")]
+        .map((node) => node.textContent?.trim() || "")
+        .find((text) => /^(1|3|5|15|30|45|60|120|180|240|1D|1W|1M|D|W|M)$/i.test(text)) || "";
+      return { symbol, timeframe, price };
+    }
+  });
+
+  const value = result?.result || {};
+  if (value.symbol) els.symbol.value = value.symbol;
+  if (value.timeframe) els.timeframe.value = value.timeframe;
+  if (value.price) els.price.value = value.price;
+  setStatus(value.symbol || value.timeframe || value.price ? "Auto-filled what TradingView exposed." : "TradingView did not expose symbol/timeframe in readable page text.");
+}
+
 async function loadConnection() {
   const result = await chrome.storage.local.get(["quantumCaptureEndpoint", "quantumApiToken"]);
   els.endpoint.value = result.quantumCaptureEndpoint || DEFAULT_ENDPOINT;
@@ -248,6 +284,8 @@ async function loadPendingCapture() {
   capture = result.quantumPendingCapture || null;
   if (capture) {
     els.symbol.value = capture.symbol || "";
+    els.timeframe.value = capture.timeframe || "";
+    els.price.value = capture.price || "";
     await setScreenshot(capture.dataUrl);
     await chrome.storage.local.remove("quantumPendingCapture");
     setStatus("TradingView capture loaded.");
@@ -277,38 +315,51 @@ async function sendToCaffeine() {
     return;
   }
 
-  await saveConnection();
-  const entry = currentEntry();
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${token}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ ...entry, token })
-  });
-
-  const text = await response.text();
-  let body = null;
-  try {
-    body = text ? JSON.parse(text) : null;
-  } catch {
-    body = text;
-  }
-
-  if (!response.ok) {
-    throw new Error(typeof body === "string" ? body : body?.message || body?.error || `HTTP ${response.status}`);
-  }
-
   await chrome.storage.local.set({
-    quantumLastCapture: {
-      ...entry,
-      caffeineResult: body,
-      syncedAt: new Date().toISOString()
-    }
+    quantumCaptureEndpoint: endpoint,
+    quantumApiToken: token
   });
-  const tradeId = body?.tradeId || body?.entryId || body?.id;
-  setStatus(tradeId ? `Sent to Caffeine. Draft ${tradeId}.` : "Sent to Caffeine.");
+  setStatus("Sending to Caffeine...");
+  els.send.disabled = true;
+  const entry = currentEntry();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ ...entry, token }),
+      signal: controller.signal
+    });
+
+    const text = await response.text();
+    let body = null;
+    try {
+      body = text ? JSON.parse(text) : null;
+    } catch {
+      body = text;
+    }
+
+    if (!response.ok) {
+      throw new Error(typeof body === "string" ? body.slice(0, 300) : body?.message || body?.error || `HTTP ${response.status}`);
+    }
+
+    await chrome.storage.local.set({
+      quantumLastCapture: {
+        ...entry,
+        caffeineResult: body,
+        syncedAt: new Date().toISOString()
+      }
+    });
+    const tradeId = body?.tradeId || body?.entryId || body?.id;
+    setStatus(tradeId ? `Sent to Caffeine. Draft ${tradeId}.` : `Sent to Caffeine. Response: ${JSON.stringify(body || { ok: true })}`);
+  } finally {
+    clearTimeout(timeout);
+    els.send.disabled = false;
+  }
 }
 
 function exportJson() {
@@ -322,7 +373,9 @@ function exportJson() {
 }
 
 async function startRecording() {
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true }).catch((error) => {
+    throw new Error(`${error.message}. In Chrome, open chrome://extensions, select QUANTUM Capture details, and allow microphone access.`);
+  });
   chunks = [];
   recordStartedAt = Date.now();
   mediaRecorder = new MediaRecorder(stream);
@@ -404,6 +457,7 @@ els.undo.addEventListener("click", () => {
 });
 els.saveConnection.addEventListener("click", saveConnection);
 els.capture.addEventListener("click", captureCurrentTab);
+els.autofill.addEventListener("click", () => autofillFromActiveTradingViewTab().catch((error) => setStatus(`Auto-fill failed: ${error.message}`)));
 els.send.addEventListener("click", () => sendToCaffeine().catch((error) => setStatus(`Sync failed: ${error.message}`)));
 els.exportJson.addEventListener("click", exportJson);
 els.record.addEventListener("click", () => startRecording().catch((error) => setStatus(error.message)));

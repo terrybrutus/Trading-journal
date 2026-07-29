@@ -19,21 +19,29 @@
           dataUrl: response.dataUrl,
           pageUrl: response.url || location.href,
           capturedAt: new Date().toISOString(),
-          symbol: readSymbol()
+          ...readTradingViewContext()
         }
       });
-      window.open(chrome.runtime.getURL("popup.html?capture=pending"), "_blank", "noopener,noreferrer");
+      chrome.runtime.sendMessage({ type: "OPEN_EDITOR" });
     });
   });
 
   document.documentElement.appendChild(button);
 
-  function readSymbol() {
+  function readTradingViewContext() {
     const title = document.title || "";
     const titleMatch = title.match(/^([A-Z0-9:_\-\.]+)/i);
-    if (titleMatch) return titleMatch[1].replace(/^.*:/, "");
+    const titleSymbol = titleMatch ? titleMatch[1].replace(/^.*:/, "") : "";
+    const titlePrice = title.match(/\b(\d+(?:\.\d+)?)\b/)?.[1] || "";
+    const symbolCandidate = document.querySelector("[data-symbol-fullname], [data-symbol], [class*=symbol]");
+    const timeframeText = [...document.querySelectorAll("button, [role=button], [data-name]")]
+      .map((node) => node.textContent?.trim() || "")
+      .find((text) => /^(1|3|5|15|30|45|60|120|180|240|1D|1W|1M|D|W|M)$/i.test(text));
 
-    const candidate = document.querySelector("[data-symbol-fullname], [data-symbol], [class*=symbol]");
-    return candidate?.getAttribute("data-symbol") || candidate?.textContent?.trim() || "";
+    return {
+      symbol: symbolCandidate?.getAttribute("data-symbol") || titleSymbol || symbolCandidate?.textContent?.trim() || "",
+      timeframe: timeframeText || "",
+      price: titlePrice || ""
+    };
   }
 })();

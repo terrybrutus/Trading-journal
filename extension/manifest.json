@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "action": {
     "default_title": "QUANTUM Capture",
-    "default_popup": "popup.html"
+    "default_popup": "launcher.html"
   },
   "background": {
     "service_worker": "background.js"
@@ -17,7 +17,7 @@
       "css": ["content.css"]
     }
   ],
-  "permissions": ["activeTab", "storage", "tabs"],
+  "permissions": ["activeTab", "audioCapture", "scripting", "storage", "tabs"],
   "host_permissions": [
     "https://www.tradingview.com/*",
     "https://*.tradingview.com/*",
