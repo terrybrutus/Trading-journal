@@ -204,6 +204,7 @@ function currentEntry() {
   const transcript = els.transcript.value.trim();
 
   return {
+    captureId: capture?.captureId || crypto.randomUUID(),
     exportedAt: new Date().toISOString(),
     source: "tradingview-chrome-extension",
     pageUrl: capture?.pageUrl || "",
@@ -348,7 +349,7 @@ async function captureCurrentTab() {
       return;
     }
     const context = await readTradingViewContext(tradingViewTab).catch(() => ({}));
-    capture = { dataUrl, pageUrl: tradingViewTab.url || "", capturedAt: new Date().toISOString(), ...context };
+    capture = { captureId: crypto.randomUUID(), dataUrl, pageUrl: tradingViewTab.url || "", capturedAt: new Date().toISOString(), ...context };
     applyTradingViewContext(context);
     await setScreenshot(dataUrl);
     if (editorTab?.id) {

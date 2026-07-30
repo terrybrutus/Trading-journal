@@ -14,6 +14,7 @@ document.getElementById("capture").addEventListener("click", async () => {
     }
     await chrome.storage.local.set({
       quantumPendingCapture: {
+        captureId: crypto.randomUUID(),
         dataUrl,
         pageUrl: tab.url || "",
         capturedAt: new Date().toISOString(),

@@ -16,6 +16,8 @@ interface Props {
   total: bigint | undefined;
   offset: bigint;
   limit: bigint;
+  selectedIds?: Set<string>;
+  onSelectedIdsChange?: (next: Set<string>) => void;
 }
 
 export function TradeList({
@@ -25,6 +27,8 @@ export function TradeList({
   total,
   offset,
   limit,
+  selectedIds = new Set(),
+  onSelectedIdsChange,
 }: Props) {
   if (isLoading) {
     return (
@@ -84,10 +88,44 @@ export function TradeList({
         data-ocid="trade.list"
         className="bg-card border border-border rounded-lg shadow-subtle divide-y divide-border overflow-hidden"
       >
-        <TradeListHeader />
+        <TradeListHeader
+          allSelected={trades.every((trade) => selectedIds.has(trade.id.toString()))}
+          onToggleAll={
+            onSelectedIdsChange
+              ? () => {
+                  const next = new Set(selectedIds);
+                  const allSelected = trades.every((trade) =>
+                    selectedIds.has(trade.id.toString()),
+                  );
+                  for (const trade of trades) {
+                    const id = trade.id.toString();
+                    if (allSelected) next.delete(id);
+                    else next.add(id);
+                  }
+                  onSelectedIdsChange(next);
+                }
+              : undefined
+          }
+        />
         <ol>
           {trades.map((trade, index) => (
-            <TradeRow key={trade.id.toString()} trade={trade} index={index} />
+            <TradeRow
+              key={trade.id.toString()}
+              trade={trade}
+              index={index}
+              selected={selectedIds.has(trade.id.toString())}
+              onToggle={
+                onSelectedIdsChange
+                  ? () => {
+                      const next = new Set(selectedIds);
+                      const id = trade.id.toString();
+                      if (next.has(id)) next.delete(id);
+                      else next.add(id);
+                      onSelectedIdsChange(next);
+                    }
+                  : undefined
+              }
+            />
           ))}
         </ol>
       </div>
@@ -96,9 +134,22 @@ export function TradeList({
   );
 }
 
-function TradeListHeader() {
+function TradeListHeader({
+  allSelected,
+  onToggleAll,
+}: {
+  allSelected: boolean;
+  onToggleAll?: () => void;
+}) {
   return (
-    <div className="bg-secondary/40 text-muted-foreground grid grid-cols-[1.5fr_0.8fr_1fr_1fr_1.2fr_0.8fr_1fr] gap-2 px-4 py-2 text-[10px] font-medium uppercase tracking-widest">
+    <div className="bg-secondary/40 text-muted-foreground grid grid-cols-[2rem_1.5fr_0.8fr_1fr_1fr_1.2fr_0.8fr_1fr] gap-2 px-4 py-2 text-[10px] font-medium uppercase tracking-widest">
+      <input
+        type="checkbox"
+        checked={allSelected}
+        onChange={onToggleAll}
+        aria-label="Select all visible trades"
+        className="size-4"
+      />
       <span>Symbol</span>
       <span>Dir</span>
       <span className="text-right">Entry</span>
@@ -110,7 +161,17 @@ function TradeListHeader() {
   );
 }
 
-function TradeRow({ trade, index }: { trade: Trade; index: number }) {
+function TradeRow({
+  trade,
+  index,
+  selected,
+  onToggle,
+}: {
+  trade: Trade;
+  index: number;
+  selected: boolean;
+  onToggle?: () => void;
+}) {
   const pnl = trade.realizedPnl;
   const pnlPositive = typeof pnl === "number" && pnl >= 0;
   const entryDate = new Date(Number(trade.entryAtNs / 1_000_000n));
@@ -118,8 +179,15 @@ function TradeRow({ trade, index }: { trade: Trade; index: number }) {
   return (
     <li
       data-ocid={`trade.item.${index}`}
-      className="grid grid-cols-[1.5fr_0.8fr_1fr_1fr_1.2fr_0.8fr_1fr] items-center gap-2 px-4 py-3 text-sm transition-smooth hover:bg-accent/30"
+      className="grid grid-cols-[2rem_1.5fr_0.8fr_1fr_1fr_1.2fr_0.8fr_1fr] items-center gap-2 px-4 py-3 text-sm transition-smooth hover:bg-accent/30"
     >
+      <input
+        type="checkbox"
+        checked={selected}
+        onChange={onToggle}
+        aria-label={`Select ${trade.symbol}`}
+        className="size-4"
+      />
       <div className="min-w-0">
         <Link
           to="/trades/$tradeId"

@@ -105,12 +105,14 @@ export interface JournalSearch {
   dateTo?: string;
   sort?: TradeSort;
   page?: number;
+  view?: "active" | "archive" | "trash";
 }
 
 // Default journal search used when the URL carries no params.
 export const DEFAULT_JOURNAL_SEARCH: JournalSearch = {
   sort: "dateDesc" as TradeSort,
   page: 1,
+  view: "active",
 };
 
 // Page size for the journal list. Kept small for snappy first paint.

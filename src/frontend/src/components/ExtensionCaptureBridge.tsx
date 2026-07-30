@@ -9,6 +9,7 @@ type ExtensionCaptureMessage = {
   source?: string;
   type?: string;
   capture?: {
+    captureId?: string;
     token?: string;
     symbol?: string | null;
     timeframe?: string | null;
@@ -51,6 +52,8 @@ export function ExtensionCaptureBridge() {
   const [pendingCapture, setPendingCapture] =
     useState<ExtensionCapturePayload | null>(null);
   const pendingSinceRef = useRef<number>(0);
+  const inFlightCaptureIdsRef = useRef<Set<string>>(new Set());
+  const processedCaptureIdsRef = useRef<Set<string>>(new Set());
 
   const reportResult = useCallback((result: Record<string, unknown>) => {
     window.postMessage(
@@ -66,6 +69,18 @@ export function ExtensionCaptureBridge() {
   const importCapture = useCallback(
     async (capture: ExtensionCapturePayload) => {
       if (!actor) return false;
+      const captureId = cleanText(capture.captureId);
+      if (captureId && processedCaptureIdsRef.current.has(captureId)) {
+        reportResult({
+          ok: true,
+          duplicate: true,
+          captureId,
+        });
+        return true;
+      }
+      if (captureId && inFlightCaptureIdsRef.current.has(captureId)) {
+        return false;
+      }
       if (!capture.token) {
         toast.error("Extension capture missing API token");
         reportResult({
@@ -76,6 +91,7 @@ export function ExtensionCaptureBridge() {
       }
 
       try {
+        if (captureId) inFlightCaptureIdsRef.current.add(captureId);
         const notes = [
           cleanText(capture.outcomeNotes),
           cleanText(capture.reflectionNotes),
@@ -104,10 +120,12 @@ export function ExtensionCaptureBridge() {
         });
 
         await queryClient.invalidateQueries({ queryKey: ["trades"] });
+        if (captureId) processedCaptureIdsRef.current.add(captureId);
         toast.success(`Extension draft created: trade ${result.tradeId}`);
         reportResult({
-          ok: true,
-          tradeId: result.tradeId.toString(),
+              ok: true,
+              captureId,
+              tradeId: result.tradeId.toString(),
           mediaId: result.mediaId.toString(),
           wasDraftCreated: result.wasDraftCreated,
         });
@@ -117,8 +135,11 @@ export function ExtensionCaptureBridge() {
         toast.error(`Extension import failed: ${message}`);
         reportResult({
           ok: false,
+          captureId,
           error: message,
         });
+      } finally {
+        if (captureId) inFlightCaptureIdsRef.current.delete(captureId);
       }
       return true;
     },

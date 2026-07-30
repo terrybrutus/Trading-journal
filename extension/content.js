@@ -16,6 +16,7 @@
       }
       await chrome.storage.local.set({
         quantumPendingCapture: {
+          captureId: crypto.randomUUID(),
           dataUrl: response.dataUrl,
           pageUrl: response.url || location.href,
           capturedAt: new Date().toISOString(),
