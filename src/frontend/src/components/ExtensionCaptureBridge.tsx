@@ -1,6 +1,12 @@
 import { createActor } from "@/backend";
 import { Direction, MediaType } from "@/backend";
-import { useActor } from "@caffeineai/core-infrastructure";
+import {
+  loadConfig,
+  useActor,
+  useInternetIdentity,
+} from "@caffeineai/core-infrastructure";
+import { StorageClient } from "@caffeineai/object-storage";
+import { HttpAgent } from "@icp-sdk/core/agent";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -28,6 +34,9 @@ type ExtensionCaptureMessage = {
     transcript?: string | null;
     mediaStorageKey?: string;
     screenshotDataUrl?: string;
+    audioDataUrl?: string | null;
+    audioMimeType?: string | null;
+    audioDurationSecs?: number | null;
     caption?: string | null;
     bucket?: string | null;
   };
@@ -53,8 +62,18 @@ function directionFor(value: unknown): Direction | undefined {
   return undefined;
 }
 
+function extensionFromContentType(contentType: string): string {
+  if (contentType === "image/jpeg") return "jpg";
+  if (contentType === "image/gif") return "gif";
+  if (contentType === "audio/webm") return "webm";
+  if (contentType === "audio/mp4") return "m4a";
+  if (contentType.startsWith("audio/")) return "webm";
+  return "png";
+}
+
 export function ExtensionCaptureBridge() {
   const { actor } = useActor(createActor);
+  const { identity } = useInternetIdentity();
   const queryClient = useQueryClient();
   const [pendingCapture, setPendingCapture] =
     useState<ExtensionCapturePayload | null>(null);
@@ -72,6 +91,40 @@ export function ExtensionCaptureBridge() {
       window.location.origin,
     );
   }, []);
+
+  const uploadDataUrl = useCallback(
+    async (
+      dataUrl: string | undefined | null,
+      fallbackContentType: string,
+      filenamePrefix: string,
+    ) => {
+      if (!dataUrl) return "";
+      if (!dataUrl.startsWith("data:")) return dataUrl;
+
+      const blob = await fetch(dataUrl).then((response) => response.blob());
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      const contentType = blob.type || fallbackContentType;
+      const config = await loadConfig();
+      const agent = identity
+        ? HttpAgent.createSync({ identity })
+        : HttpAgent.createSync({});
+      const client = new StorageClient(
+        config.bucket_name,
+        config.storage_gateway_url,
+        config.backend_canister_id,
+        config.project_id,
+        agent,
+      );
+      const key = await client.putFile(
+        bytes,
+        undefined,
+        contentType,
+        `${filenamePrefix}-${Date.now()}.${extensionFromContentType(contentType)}`,
+      );
+      return key.hash;
+    },
+    [identity],
+  );
 
   const importCapture = useCallback(
     async (capture: ExtensionCapturePayload) => {
@@ -129,13 +182,17 @@ export function ExtensionCaptureBridge() {
           ].filter(Boolean).join(" | ") || undefined,
         ].filter(Boolean);
 
+        const mediaStorageKey = await uploadDataUrl(
+          capture.mediaStorageKey || capture.screenshotDataUrl,
+          "image/png",
+          `extension-screenshot-${captureId || "capture"}`,
+        );
         const result = await actor.receiveExtensionCapture({
           token: capture.token,
           symbol: cleanText(capture.symbol),
           timeframe: cleanText(capture.timeframe),
           price: cleanNumber(capture.price),
-          mediaStorageKey:
-            capture.mediaStorageKey || capture.screenshotDataUrl || "",
+          mediaStorageKey,
           mediaType: MediaType.screenshot,
           caption: cleanText(capture.caption) || cleanText(capture.bucket),
           direction: directionFor(capture.direction),
@@ -147,7 +204,35 @@ export function ExtensionCaptureBridge() {
           outcomeNotes: notes.length > 0 ? notes.join("\n\n") : undefined,
         });
 
+        if (capture.audioDataUrl) {
+          const audioStorageKey = await uploadDataUrl(
+            capture.audioDataUrl,
+            cleanText(capture.audioMimeType) || "audio/webm",
+            `extension-audio-${captureId || "capture"}`,
+          );
+          if (audioStorageKey) {
+            await actor.addAudioRecapToTrade(result.tradeId, {
+              audioStorageKey,
+              transcript: cleanText(capture.transcript) || "",
+              durationSecs: BigInt(
+                Math.max(
+                  0,
+                  Math.round(cleanNumber(capture.audioDurationSecs) || 0),
+                ),
+              ),
+            });
+          }
+        }
+
         await queryClient.invalidateQueries({ queryKey: ["trades"] });
+        if (result.tradeId) {
+          await queryClient.invalidateQueries({
+            queryKey: ["media", result.tradeId.toString()],
+          });
+          await queryClient.invalidateQueries({
+            queryKey: ["audioRecaps", result.tradeId.toString()],
+          });
+        }
         if (captureId) processedCaptureIdsRef.current.add(captureId);
         toast.success(`Extension draft created: trade ${result.tradeId}`);
         reportResult({
@@ -173,7 +258,7 @@ export function ExtensionCaptureBridge() {
       }
       return true;
     },
-    [actor, queryClient, reportResult],
+    [actor, queryClient, reportResult, uploadDataUrl],
   );
 
   useEffect(() => {
