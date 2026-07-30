@@ -10,6 +10,9 @@ type ExtensionCaptureMessage = {
   type?: string;
   capture?: {
     captureId?: string;
+    deliveryId?: string;
+    createdAtMs?: number;
+    expiresAtMs?: number;
     token?: string;
     symbol?: string | null;
     timeframe?: string | null;
@@ -37,6 +40,10 @@ function cleanText(value: unknown): string | undefined {
 }
 
 function cleanNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function cleanFiniteMs(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
@@ -70,11 +77,23 @@ export function ExtensionCaptureBridge() {
     async (capture: ExtensionCapturePayload) => {
       if (!actor) return false;
       const captureId = cleanText(capture.captureId);
+      const deliveryId = cleanText(capture.deliveryId);
+      const expiresAtMs = cleanFiniteMs(capture.expiresAtMs);
+      if (expiresAtMs && Date.now() > expiresAtMs) {
+        reportResult({
+          ok: false,
+          captureId,
+          deliveryId,
+          error: "This extension capture expired before Caffeine imported it. Send it again.",
+        });
+        return true;
+      }
       if (captureId && processedCaptureIdsRef.current.has(captureId)) {
         reportResult({
           ok: true,
           duplicate: true,
           captureId,
+          deliveryId,
         });
         return true;
       }
@@ -93,12 +112,21 @@ export function ExtensionCaptureBridge() {
       try {
         if (captureId) inFlightCaptureIdsRef.current.add(captureId);
         const notes = [
-          cleanText(capture.outcomeNotes),
-          cleanText(capture.reflectionNotes),
+          cleanText(capture.outcomeNotes) ?? cleanText(capture.reflectionNotes),
           cleanText(capture.transcript)
             ? `Transcript:\n${cleanText(capture.transcript)}`
             : undefined,
           cleanText(capture.bucket) ? `Bucket: ${cleanText(capture.bucket)}` : undefined,
+          captureId ? `Extension capture: ${captureId}` : undefined,
+          [
+            cleanText(capture.direction) ? `Direction: ${cleanText(capture.direction)}` : undefined,
+            cleanNumber(capture.entryPrice) !== undefined ? `Entry: ${cleanNumber(capture.entryPrice)}` : undefined,
+            cleanNumber(capture.exitPrice) !== undefined ? `Exit: ${cleanNumber(capture.exitPrice)}` : undefined,
+            cleanNumber(capture.size) !== undefined || cleanNumber(capture.positionSize) !== undefined
+              ? `Size: ${cleanNumber(capture.size) ?? cleanNumber(capture.positionSize)}`
+              : undefined,
+            cleanNumber(capture.realizedPnl) !== undefined ? `P/L: ${cleanNumber(capture.realizedPnl)}` : undefined,
+          ].filter(Boolean).join(" | ") || undefined,
         ].filter(Boolean);
 
         const result = await actor.receiveExtensionCapture({
@@ -125,6 +153,7 @@ export function ExtensionCaptureBridge() {
         reportResult({
               ok: true,
               captureId,
+              deliveryId,
               tradeId: result.tradeId.toString(),
           mediaId: result.mediaId.toString(),
           wasDraftCreated: result.wasDraftCreated,
@@ -136,6 +165,7 @@ export function ExtensionCaptureBridge() {
         reportResult({
           ok: false,
           captureId,
+          deliveryId,
           error: message,
         });
       } finally {

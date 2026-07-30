@@ -4,6 +4,7 @@ const els = {
   endpoint: document.getElementById("endpoint"),
   token: document.getElementById("token"),
   saveConnection: document.getElementById("saveConnection"),
+  clearPending: document.getElementById("clearPending"),
   symbol: document.getElementById("symbol"),
   timeframe: document.getElementById("timeframe"),
   price: document.getElementById("price"),
@@ -249,6 +250,15 @@ async function saveConnection() {
   setStatus("Connection saved.");
 }
 
+async function clearPendingCapture() {
+  await chrome.storage.local.remove([
+    "quantumPendingCapture",
+    "quantumPendingCaffeineCapture",
+    "quantumLastCaffeineResult"
+  ]);
+  setStatus("Cleared pending extension captures.");
+}
+
 function normalizeCaffeineUrl(value) {
   try {
     const url = new URL(value);
@@ -373,7 +383,13 @@ async function sendToCaffeine() {
   });
   setStatus("Opening Caffeine to import capture...");
   els.send.disabled = true;
-  const entry = currentEntry();
+  const deliveryId = crypto.randomUUID();
+  const entry = {
+    ...currentEntry(),
+    deliveryId,
+    createdAtMs: Date.now(),
+    expiresAtMs: Date.now() + 120000
+  };
   try {
     await chrome.storage.local.set({
       quantumPendingCaffeineCapture: {
@@ -382,7 +398,7 @@ async function sendToCaffeine() {
       },
       quantumLastCaffeineResult: null
     });
-    await chrome.tabs.create({ url: `${endpoint}/journal?quantumCapture=pending` });
+    await chrome.tabs.create({ url: `${endpoint}/journal?quantumCapture=pending&quantumDelivery=${deliveryId}` });
     pollCaffeineResult();
     setStatus("Caffeine opened. If you are signed in, the app will create the draft.");
   } finally {
@@ -527,6 +543,7 @@ els.undo.addEventListener("click", () => {
   restore(history[history.length - 1]);
 });
 els.saveConnection.addEventListener("click", saveConnection);
+els.clearPending.addEventListener("click", clearPendingCapture);
 els.capture.addEventListener("click", captureCurrentTab);
 els.autofill.addEventListener("click", () => autofillFromTradingViewTab().catch((error) => setStatus(`Auto-fill failed: ${error.message}`)));
 els.usePriceAsEntry.addEventListener("click", () => useChartPrice(els.entryPrice));

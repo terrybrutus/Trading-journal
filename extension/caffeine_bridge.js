@@ -3,9 +3,17 @@
   window.__quantumCaffeineBridgeInstalled = true;
 
   async function deliverPendingCapture() {
+    const params = new URLSearchParams(window.location.search);
+    const deliveryId = params.get("quantumDelivery");
+    if (!deliveryId) return;
     const result = await chrome.storage.local.get("quantumPendingCaffeineCapture");
     const capture = result.quantumPendingCaffeineCapture;
     if (!capture) return;
+    if (capture.deliveryId !== deliveryId) return;
+    if (capture.expiresAtMs && Date.now() > capture.expiresAtMs) {
+      await chrome.storage.local.remove("quantumPendingCaffeineCapture");
+      return;
+    }
     window.postMessage(
       {
         source: "quantum-extension",
