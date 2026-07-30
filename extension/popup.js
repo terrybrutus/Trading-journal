@@ -287,11 +287,31 @@ async function readTradingViewContext(tab) {
       const title = document.title || "";
       const titleMatch = title.match(/^([A-Z0-9:_\-.]+)/i);
       const symbol = titleMatch ? titleMatch[1].replace(/^.*:/, "") : "";
-      const priceCandidates = [...document.querySelectorAll("[class*=price], [data-name*=price], [data-field*=price], span, div")]
-        .map((node) => node.textContent?.trim() || "")
-        .filter((text) => /^\$?-?\d{1,6}(?:,\d{3})*(?:\.\d+)?$/.test(text))
-        .slice(0, 25);
-      const price = priceCandidates[0]?.replace(/[$,]/g, "") || title.match(/\b(\d+(?:\.\d+)?)\b/)?.[1] || "";
+      const parsePrice = (text) => {
+        const matches = String(text || "").match(/\$?-?\d{1,6}(?:,\d{3})+(?:\.\d+)?|\$?-?\d+\.\d{2,}/g) || [];
+        return matches
+          .map((raw) => ({
+            raw,
+            normalized: raw.replace(/[$,\s]/g, ""),
+            value: Number(raw.replace(/[$,\s]/g, ""))
+          }))
+          .filter((item) => Number.isFinite(item.value) && Math.abs(item.value) > 0);
+      };
+      const nodes = [...document.querySelectorAll("[class*=price], [data-name*=price], [data-field*=price], [data-symbol], [data-name], span, div")]
+        .map((node) => node.textContent?.replace(/\s+/g, " ").trim() || "")
+        .filter(Boolean)
+        .slice(0, 500);
+      const symbolRows = symbol
+        ? nodes.filter((text) => text.toUpperCase().includes(symbol.toUpperCase()))
+        : [];
+      const symbolPrices = symbolRows.flatMap(parsePrice);
+      const allPrices = nodes.flatMap(parsePrice);
+      const preferred =
+        symbolPrices.find((item) => item.raw.includes(",")) ||
+        symbolPrices[0] ||
+        allPrices.find((item) => item.raw.includes(",")) ||
+        allPrices[0];
+      const price = preferred?.normalized || "";
       const timeframe = [...document.querySelectorAll("button, [role=button], [data-name]")]
         .map((node) => node.textContent?.trim() || "")
         .find((text) => /^(1|3|5|15|30|45|60|120|180|240|1D|1W|1M|D|W|M)$/i.test(text)) || "";

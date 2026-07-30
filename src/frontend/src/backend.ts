@@ -1984,20 +1984,20 @@ function to_candid_record_n98(_uploadFile: (file: ExternalBlob) => Promise<Uint8
     symbol: [] | [string];
 } {
     return {
-        direction: value.direction ? candid_some(to_candid_Direction_n33(_uploadFile, _downloadFile, value.direction)) : candid_none(),
+        direction: value.direction !== undefined ? candid_some(to_candid_Direction_n33(_uploadFile, _downloadFile, value.direction)) : candid_none(),
         token: value.token,
-        timeframe: value.timeframe ? candid_some(value.timeframe) : candid_none(),
-        outcomeNotes: value.outcomeNotes ? candid_some(value.outcomeNotes) : candid_none(),
-        size: value.size ? candid_some(value.size) : candid_none(),
-        realizedPnl: value.realizedPnl ? candid_some(value.realizedPnl) : candid_none(),
-        caption: value.caption ? candid_some(value.caption) : candid_none(),
+        timeframe: value.timeframe !== undefined ? candid_some(value.timeframe) : candid_none(),
+        outcomeNotes: value.outcomeNotes !== undefined ? candid_some(value.outcomeNotes) : candid_none(),
+        size: value.size !== undefined ? candid_some(value.size) : candid_none(),
+        realizedPnl: value.realizedPnl !== undefined ? candid_some(value.realizedPnl) : candid_none(),
+        caption: value.caption !== undefined ? candid_some(value.caption) : candid_none(),
         mediaType: to_candid_MediaType_n13(_uploadFile, _downloadFile, value.mediaType),
-        entryPrice: value.entryPrice ? candid_some(value.entryPrice) : candid_none(),
-        targetTradeId: value.targetTradeId ? candid_some(value.targetTradeId) : candid_none(),
-        price: value.price ? candid_some(value.price) : candid_none(),
-        exitPrice: value.exitPrice ? candid_some(value.exitPrice) : candid_none(),
+        entryPrice: value.entryPrice !== undefined ? candid_some(value.entryPrice) : candid_none(),
+        targetTradeId: value.targetTradeId !== undefined ? candid_some(value.targetTradeId) : candid_none(),
+        price: value.price !== undefined ? candid_some(value.price) : candid_none(),
+        exitPrice: value.exitPrice !== undefined ? candid_some(value.exitPrice) : candid_none(),
         mediaStorageKey: value.mediaStorageKey,
-        symbol: value.symbol ? candid_some(value.symbol) : candid_none()
+        symbol: value.symbol !== undefined ? candid_some(value.symbol) : candid_none()
     };
 }
 function to_candid_record_n99(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
@@ -2066,10 +2066,10 @@ function to_candid_variant_n34(_uploadFile: (file: ExternalBlob) => Promise<Uint
 } | {
     short: null;
 } {
-    return value == Direction.long ? {
-        long_: null
-    } : value == Direction.short ? {
-        short_: null
+    return value == Direction.long_ ? {
+        long: null
+    } : value == Direction.short_ ? {
+        short: null
     } : value;
 }
 function to_candid_variant_n36(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: TradeOrigin): {
