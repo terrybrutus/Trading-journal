@@ -32,5 +32,7 @@
   });
 
   deliverPendingCapture();
-  window.setTimeout(deliverPendingCapture, 1200);
+  [1200, 2500, 5000, 9000, 14000].forEach((delay) => {
+    window.setTimeout(deliverPendingCapture, delay);
+  });
 })();

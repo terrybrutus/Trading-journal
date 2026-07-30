@@ -2,7 +2,7 @@ import { createActor } from "@/backend";
 import { Direction, MediaType } from "@/backend";
 import { useActor } from "@caffeineai/core-infrastructure";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 type ExtensionCaptureMessage = {
@@ -29,6 +29,8 @@ type ExtensionCaptureMessage = {
   };
 };
 
+type ExtensionCapturePayload = NonNullable<ExtensionCaptureMessage["capture"]>;
+
 function cleanText(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
@@ -46,31 +48,31 @@ function directionFor(value: unknown): Direction | undefined {
 export function ExtensionCaptureBridge() {
   const { actor } = useActor(createActor);
   const queryClient = useQueryClient();
+  const [pendingCapture, setPendingCapture] =
+    useState<ExtensionCapturePayload | null>(null);
+  const pendingSinceRef = useRef<number>(0);
 
-  useEffect(() => {
-    async function handleMessage(event: MessageEvent<ExtensionCaptureMessage>) {
-      if (event.source !== window) return;
-      if (event.data?.source !== "quantum-extension") return;
-      if (event.data?.type !== "QUANTUM_EXTENSION_CAPTURE") return;
-      if (!actor) {
-        window.postMessage(
-          {
-            source: "quantum-caffeine-app",
-            type: "QUANTUM_EXTENSION_CAPTURE_RESULT",
-            result: {
-              ok: false,
-              error: "Caffeine app is not signed in or backend actor is not ready.",
-            },
-          },
-          window.location.origin,
-        );
-        return;
-      }
+  const reportResult = useCallback((result: Record<string, unknown>) => {
+    window.postMessage(
+      {
+        source: "quantum-caffeine-app",
+        type: "QUANTUM_EXTENSION_CAPTURE_RESULT",
+        result,
+      },
+      window.location.origin,
+    );
+  }, []);
 
-      const capture = event.data.capture || {};
+  const importCapture = useCallback(
+    async (capture: ExtensionCapturePayload) => {
+      if (!actor) return false;
       if (!capture.token) {
         toast.error("Extension capture missing API token");
-        return;
+        reportResult({
+          ok: false,
+          error: "Extension capture missing API token.",
+        });
+        return true;
       }
 
       try {
@@ -103,40 +105,71 @@ export function ExtensionCaptureBridge() {
 
         await queryClient.invalidateQueries({ queryKey: ["trades"] });
         toast.success(`Extension draft created: trade ${result.tradeId}`);
-        window.postMessage(
-          {
-            source: "quantum-caffeine-app",
-            type: "QUANTUM_EXTENSION_CAPTURE_RESULT",
-            result: {
-              ok: true,
-              tradeId: result.tradeId.toString(),
-              mediaId: result.mediaId.toString(),
-              wasDraftCreated: result.wasDraftCreated,
-            },
-          },
-          window.location.origin,
-        );
+        reportResult({
+          ok: true,
+          tradeId: result.tradeId.toString(),
+          mediaId: result.mediaId.toString(),
+          wasDraftCreated: result.wasDraftCreated,
+        });
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Unknown import error";
         toast.error(`Extension import failed: ${message}`);
-        window.postMessage(
-          {
-            source: "quantum-caffeine-app",
-            type: "QUANTUM_EXTENSION_CAPTURE_RESULT",
-            result: {
-              ok: false,
-              error: message,
-            },
-          },
-          window.location.origin,
-        );
+        reportResult({
+          ok: false,
+          error: message,
+        });
       }
+      return true;
+    },
+    [actor, queryClient, reportResult],
+  );
+
+  useEffect(() => {
+    async function handleMessage(event: MessageEvent<ExtensionCaptureMessage>) {
+      if (event.source !== window) return;
+      if (event.data?.source !== "quantum-extension") return;
+      if (event.data?.type !== "QUANTUM_EXTENSION_CAPTURE") return;
+
+      const capture = event.data.capture || {};
+      pendingSinceRef.current = Date.now();
+      setPendingCapture(capture);
+      toast("Extension capture received. Waiting for Caffeine backend...");
     }
 
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [actor, queryClient]);
+  }, []);
+
+  useEffect(() => {
+    if (!pendingCapture) return;
+    let cancelled = false;
+    const captureToImport = pendingCapture;
+
+    async function tryImport() {
+      const imported = await importCapture(captureToImport);
+      if (cancelled) return;
+      if (imported) {
+        setPendingCapture(null);
+        return;
+      }
+      if (Date.now() - pendingSinceRef.current > 45000) {
+        reportResult({
+          ok: false,
+          error:
+            "Caffeine backend was not ready after 45 seconds. Confirm you are signed in, then click Send to Caffeine again.",
+        });
+        setPendingCapture(null);
+      }
+    }
+
+    tryImport();
+    const interval = window.setInterval(tryImport, 1500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [importCapture, pendingCapture, reportResult]);
 
   return null;
 }
