@@ -3,11 +3,27 @@ import { Direction } from "@/types";
 export type ImportedTradeRow = {
   id: string;
   symbol: string;
-  side: "buy" | "sell";
   direction: Direction;
+  entryOrderType: string;
+  exitOrderType?: string;
+  size: number;
+  entryPrice: number;
+  exitPrice?: number;
+  status: string;
+  occurredAt: string;
+  closedAt?: string;
+  entryOrderId?: string;
+  exitOrderId?: string;
+  pnl?: number;
+  raw: string;
+  source: "csv" | "text";
+};
+
+type ImportedFill = {
+  symbol: string;
+  side: "buy" | "sell";
   orderType: string;
   size: number;
-  filledSize?: number;
   price: number;
   status: string;
   occurredAt: string;
@@ -42,7 +58,7 @@ export function parseCsvNotifications(input: string): ImportedTradeRow[] {
   const [header, ...body] = rows;
   const indexes = new Map(header.map((name, index) => [name.trim().toLowerCase(), index]));
 
-  return body.flatMap((row) => {
+  const fills = body.flatMap((row): ImportedFill[] => {
     const symbol = row[indexes.get("symbol") ?? -1]?.trim();
     const occurredAt = row[indexes.get("time") ?? -1]?.trim();
     const title = row[indexes.get("title") ?? -1]?.trim() ?? "";
@@ -56,24 +72,21 @@ export function parseCsvNotifications(input: string): ImportedTradeRow[] {
     const price = cleanNumber(match[3]);
     if (!size || price === undefined) return [];
 
-    return [
-      {
-        id: makeId([symbol, occurredAt, orderId, side, size, price]),
-        symbol,
-        side,
-        direction: directionFor(side),
-        orderType: title.replace(/\s+on\s+.*$/i, "").replace(/\s+executed/i, "").trim() || "Order",
-        size,
-        filledSize: size,
-        price,
-        status: "filled",
-        occurredAt,
-        orderId,
-        raw: [title, text].join(" - "),
-        source: "csv" as const,
-      },
-    ];
+    return [{
+      symbol,
+      side,
+      orderType: title.replace(/\s+on\s+.*$/i, "").replace(/\s+executed/i, "").trim() || "Order",
+      size,
+      price,
+      status: "filled",
+      occurredAt,
+      orderId,
+      raw: [title, text].join(" - "),
+      source: "csv",
+    }];
   });
+
+  return fillsToTrades(fills);
 }
 
 export function parsePastedTradingPanel(input: string): ImportedTradeRow[] {
@@ -81,7 +94,7 @@ export function parsePastedTradingPanel(input: string): ImportedTradeRow[] {
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
-  const rows: ImportedTradeRow[] = [];
+  const fills: ImportedFill[] = [];
 
   for (let index = 0; index < lines.length; index += 1) {
     const symbol = lines[index];
@@ -115,21 +128,16 @@ export function parsePastedTradingPanel(input: string): ImportedTradeRow[] {
     const occurredAt = detailParts.find((part) => /^\d{4}-\d{2}-\d{2}/.test(part)) ?? "";
     const linkedOrderId = detailParts.find((part) => /^[A-Z0-9._:-]+:\d+$/i.test(part));
     const orderId = detailParts.find((part) => /^\d{6,}$/.test(part));
-    const pnl = detailParts
-      .map((part) => cleanNumber(part))
-      .find((value) => value !== undefined && value !== 0);
+    const pnl = pnlFromDetailParts(detailParts);
     const price = prices.at(-1);
 
     if (!occurredAt || price === undefined || status !== "filled") continue;
 
-    rows.push({
-      id: makeId([symbol, occurredAt, orderId, side, size, price]),
+    fills.push({
       symbol,
       side,
-      direction: directionFor(side),
       orderType,
       size,
-      filledSize,
       price,
       status,
       occurredAt,
@@ -142,7 +150,180 @@ export function parsePastedTradingPanel(input: string): ImportedTradeRow[] {
     index = cursor + 1;
   }
 
-  return rows;
+  return fillsToTrades(fills);
+}
+
+function pnlFromDetailParts(parts: string[]): number | undefined {
+  const numeric = parts
+    .map((part) => ({ raw: part, value: cleanNumber(part) }))
+    .filter((part): part is { raw: string; value: number } => part.value !== undefined);
+  const withoutIds = numeric.filter(
+    (part) => !/^\d{6,}$/.test(part.raw) && !/^\d{4}-\d{2}-\d{2}/.test(part.raw),
+  );
+  if (withoutIds.length <= 1) return undefined;
+  return withoutIds.at(-1)?.value;
+}
+
+function fillsToTrades(fills: ImportedFill[]): ImportedTradeRow[] {
+  type Position = {
+    symbol: string;
+    direction: Direction;
+    remaining: number;
+    entryPrice: number;
+    openedAt: string;
+    orderType: string;
+    orderId?: string;
+    raw: string[];
+    source: "csv" | "text";
+  };
+
+  const positions = new Map<string, Position>();
+  const trades: ImportedTradeRow[] = [];
+  const sorted = [...fills]
+    .filter((fill) => fill.status === "filled")
+    .sort((a, b) => Date.parse(a.occurredAt.replace(" ", "T")) - Date.parse(b.occurredAt.replace(" ", "T")));
+  const used = new Set<ImportedFill>();
+
+  for (const close of sorted) {
+    const linkedOrderId = close.linkedOrderId?.split(":").pop();
+    if (!linkedOrderId || linkedOrderId === close.orderId || close.pnl === undefined) {
+      continue;
+    }
+    const entry = sorted.find(
+      (fill) =>
+        !used.has(fill) &&
+        fill !== close &&
+        fill.symbol === close.symbol &&
+        fill.orderId === linkedOrderId &&
+        fill.side !== close.side &&
+        Date.parse(fill.occurredAt.replace(" ", "T")) <=
+          Date.parse(close.occurredAt.replace(" ", "T")),
+    );
+    if (!entry) continue;
+    used.add(entry);
+    used.add(close);
+    trades.push({
+      id: makeId([close.symbol, entry.occurredAt, close.occurredAt, entry.orderId, close.orderId, entry.size]),
+      symbol: close.symbol,
+      direction: directionFor(entry.side),
+      entryOrderType: entry.orderType,
+      exitOrderType: close.orderType,
+      size: Math.min(entry.size, close.size),
+      entryPrice: entry.price,
+      exitPrice: close.price,
+      status: "closed",
+      occurredAt: entry.occurredAt,
+      closedAt: close.occurredAt,
+      entryOrderId: entry.orderId,
+      exitOrderId: close.orderId,
+      pnl: close.pnl,
+      raw: [entry.raw, close.raw].join("\n\n"),
+      source: entry.source,
+    });
+  }
+
+  if (sorted.some((fill) => fill.source === "text")) {
+    for (const fill of sorted) {
+      if (used.has(fill)) continue;
+      const linkedOrderId = fill.linkedOrderId?.split(":").pop();
+      if (fill.pnl !== undefined && linkedOrderId && linkedOrderId !== fill.orderId) {
+        continue;
+      }
+      trades.push({
+        id: makeId([fill.symbol, fill.occurredAt, fill.orderId, fill.side, fill.size]),
+        symbol: fill.symbol,
+        direction: directionFor(fill.side),
+        entryOrderType: fill.orderType,
+        size: fill.size,
+        entryPrice: fill.price,
+        status: "open",
+        occurredAt: fill.occurredAt,
+        entryOrderId: fill.orderId,
+        raw: fill.raw,
+        source: fill.source,
+      });
+    }
+    return trades.sort(
+      (a, b) =>
+        Date.parse((b.closedAt ?? b.occurredAt).replace(" ", "T")) -
+        Date.parse((a.closedAt ?? a.occurredAt).replace(" ", "T")),
+    );
+  }
+
+  for (const fill of sorted) {
+    if (used.has(fill)) continue;
+    const open = positions.get(fill.symbol);
+    const fillDirection = directionFor(fill.side);
+    if (!open || open.direction === fillDirection) {
+      const current = open ?? {
+        symbol: fill.symbol,
+        direction: fillDirection,
+        remaining: 0,
+        entryPrice: 0,
+        openedAt: fill.occurredAt,
+        orderType: fill.orderType,
+        orderId: fill.orderId,
+        raw: [],
+        source: fill.source,
+      };
+      const nextRemaining = current.remaining + fill.size;
+      current.entryPrice =
+        nextRemaining === 0
+          ? fill.price
+          : (current.entryPrice * current.remaining + fill.price * fill.size) /
+            nextRemaining;
+      current.remaining = nextRemaining;
+      current.raw.push(fill.raw);
+      positions.set(fill.symbol, current);
+      continue;
+    }
+
+    const closeSize = Math.min(open.remaining, fill.size);
+    trades.push({
+      id: makeId([fill.symbol, open.openedAt, fill.occurredAt, open.orderId, fill.orderId, closeSize]),
+      symbol: fill.symbol,
+      direction: open.direction,
+      entryOrderType: open.orderType,
+      exitOrderType: fill.orderType,
+      size: closeSize,
+      entryPrice: open.entryPrice,
+      exitPrice: fill.price,
+      status: "closed",
+      occurredAt: open.openedAt,
+      closedAt: fill.occurredAt,
+      entryOrderId: open.orderId,
+      exitOrderId: fill.orderId,
+      pnl: fill.pnl,
+      raw: [...open.raw, fill.raw].join("\n\n"),
+      source: open.source,
+    });
+
+    open.remaining -= closeSize;
+    open.raw.push(fill.raw);
+    if (open.remaining <= 0.0000001) positions.delete(fill.symbol);
+  }
+
+  for (const open of positions.values()) {
+    trades.push({
+      id: makeId([open.symbol, open.openedAt, open.orderId, open.direction, open.remaining]),
+      symbol: open.symbol,
+      direction: open.direction,
+      entryOrderType: open.orderType,
+      size: open.remaining,
+      entryPrice: open.entryPrice,
+      status: "open",
+      occurredAt: open.openedAt,
+      entryOrderId: open.orderId,
+      raw: open.raw.join("\n\n"),
+      source: open.source,
+    });
+  }
+
+  return trades.sort(
+    (a, b) =>
+      Date.parse((b.closedAt ?? b.occurredAt).replace(" ", "T")) -
+      Date.parse((a.closedAt ?? a.occurredAt).replace(" ", "T")),
+  );
 }
 
 function parseCsv(input: string): string[][] {

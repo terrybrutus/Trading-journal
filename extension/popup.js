@@ -175,33 +175,153 @@ function parseBrokerText(input) {
     }
     const status = lines[cursor]?.toLowerCase();
     const detail = lines[cursor + 1] || "";
-    const occurredAt = detail.split(/\t+/).find((part) => /^\d{4}-\d{2}-\d{2}/.test(part.trim()))?.trim();
+    const detailParts = detail.split(/\t+/).map((part) => part.trim());
+    const occurredAt = detailParts.find((part) => /^\d{4}-\d{2}-\d{2}/.test(part))?.trim();
+    const linkedOrderId = detailParts.find((part) => /^[A-Z0-9._:-]+:\d+$/i.test(part));
+    const orderId = detailParts.find((part) => /^\d{6,}$/.test(part));
+    const numericDetail = detailParts
+      .map((part) => ({ raw: part, value: cleanImportNumber(part) }))
+      .filter((part) => part.value !== null && !/^\d{6,}$/.test(part.raw) && !/^\d{4}-\d{2}-\d{2}/.test(part.raw));
+    const pnl = numericDetail.length > 1 ? numericDetail[numericDetail.length - 1].value : undefined;
     const price = prices[prices.length - 1];
     if (status !== "filled" || !occurredAt || price === undefined) continue;
-    rows.push({ symbol, side, size, price, occurredAt, orderType: orderLine.replace(/[\d.\s]+/g, " ").trim() });
+    rows.push({ symbol, side, size, price, occurredAt, orderType: orderLine.replace(/[\d.\s]+/g, " ").trim(), linkedOrderId, orderId, pnl, source: "text" });
     index = cursor + 1;
   }
   return rows;
 }
 
+function directionForBrokerSide(side) {
+  return side === "sell" ? "short" : "long";
+}
+
+function pairBrokerFills(fills) {
+  const positions = new Map();
+  const trades = [];
+  const sorted = [...fills].sort(
+    (a, b) => Date.parse(a.occurredAt.replace(" ", "T")) - Date.parse(b.occurredAt.replace(" ", "T"))
+  );
+  const used = new Set();
+  for (const close of sorted) {
+    const linkedOrderId = close.linkedOrderId?.split(":").pop();
+    if (!linkedOrderId || linkedOrderId === close.orderId || close.pnl === undefined) continue;
+    const entry = sorted.find((fill) =>
+      !used.has(fill) &&
+      fill !== close &&
+      fill.symbol === close.symbol &&
+      fill.orderId === linkedOrderId &&
+      fill.side !== close.side &&
+      Date.parse(fill.occurredAt.replace(" ", "T")) <= Date.parse(close.occurredAt.replace(" ", "T"))
+    );
+    if (!entry) continue;
+    used.add(entry);
+    used.add(close);
+    trades.push({
+      symbol: close.symbol,
+      direction: directionForBrokerSide(entry.side),
+      size: Math.min(entry.size, close.size),
+      entryPrice: entry.price,
+      exitPrice: close.price,
+      realizedPnl: close.pnl,
+      occurredAt: entry.occurredAt,
+      closedAt: close.occurredAt,
+      orderType: `${entry.orderType || "Entry"} -> ${close.orderType || "Exit"}`,
+      status: "closed"
+    });
+  }
+  if (sorted.some((fill) => fill.source === "text")) {
+    for (const fill of sorted) {
+      if (used.has(fill)) continue;
+      const linkedOrderId = fill.linkedOrderId?.split(":").pop();
+      if (fill.pnl !== undefined && linkedOrderId && linkedOrderId !== fill.orderId) continue;
+      trades.push({
+        symbol: fill.symbol,
+        direction: directionForBrokerSide(fill.side),
+        size: fill.size,
+        entryPrice: fill.price,
+        occurredAt: fill.occurredAt,
+        orderType: fill.orderType,
+        status: "open"
+      });
+    }
+    return trades.sort(
+      (a, b) => Date.parse((b.closedAt || b.occurredAt).replace(" ", "T")) - Date.parse((a.closedAt || a.occurredAt).replace(" ", "T"))
+    );
+  }
+  for (const fill of sorted) {
+    if (used.has(fill)) continue;
+    const open = positions.get(fill.symbol);
+    const direction = directionForBrokerSide(fill.side);
+    if (!open || open.direction === direction) {
+      const current = open || {
+        symbol: fill.symbol,
+        direction,
+        remaining: 0,
+        entryPrice: 0,
+        openedAt: fill.occurredAt,
+        orderType: fill.orderType
+      };
+      const nextRemaining = current.remaining + fill.size;
+      current.entryPrice = nextRemaining === 0
+        ? fill.price
+        : ((current.entryPrice * current.remaining) + (fill.price * fill.size)) / nextRemaining;
+      current.remaining = nextRemaining;
+      positions.set(fill.symbol, current);
+      continue;
+    }
+    const size = Math.min(open.remaining, fill.size);
+    trades.push({
+      symbol: fill.symbol,
+      direction: open.direction,
+      size,
+      entryPrice: open.entryPrice,
+      exitPrice: fill.price,
+      realizedPnl: fill.pnl,
+      occurredAt: open.openedAt,
+      closedAt: fill.occurredAt,
+      orderType: `${open.orderType || "Entry"} -> ${fill.orderType || "Exit"}`,
+      status: "closed"
+    });
+    open.remaining -= size;
+    if (open.remaining <= 0.0000001) positions.delete(fill.symbol);
+  }
+  for (const open of positions.values()) {
+    trades.push({
+      symbol: open.symbol,
+      direction: open.direction,
+      size: open.remaining,
+      entryPrice: open.entryPrice,
+      occurredAt: open.openedAt,
+      orderType: open.orderType,
+      status: "open"
+    });
+  }
+  return trades.sort(
+    (a, b) => Date.parse((b.closedAt || b.occurredAt).replace(" ", "T")) - Date.parse((a.closedAt || a.occurredAt).replace(" ", "T"))
+  );
+}
+
 function applyBrokerExecution(row) {
   els.symbol.value = row.symbol || els.symbol.value;
-  els.direction.value = row.side === "sell" ? "short" : "long";
-  els.entryPrice.value = row.price?.toString() || els.entryPrice.value;
+  els.direction.value = row.direction || els.direction.value;
+  els.entryPrice.value = row.entryPrice?.toString() || els.entryPrice.value;
+  els.exitPrice.value = row.exitPrice?.toString() || els.exitPrice.value;
   els.size.value = row.size?.toString() || els.size.value;
-  if (row.price) els.price.value = row.price.toString();
+  if (row.exitPrice || row.entryPrice) els.price.value = (row.exitPrice || row.entryPrice).toString();
+  if (row.realizedPnl !== undefined) els.realizedPnl.value = row.realizedPnl.toFixed(2);
   if (row.occurredAt) {
     const parsed = new Date(row.occurredAt.includes("T") ? row.occurredAt : row.occurredAt.replace(" ", "T"));
     if (!Number.isNaN(parsed.getTime())) els.tradeOccurredAt.value = toLocalInput(parsed);
   }
-  const note = `Broker import: ${row.orderType || "Order"} ${row.side} ${row.size} at ${row.price}`;
+  const note = row.status === "closed"
+    ? `Broker import: ${row.orderType || "Order"} ${row.direction} ${row.size} entry ${row.entryPrice} exit ${row.exitPrice}`
+    : `Broker import: ${row.orderType || "Order"} ${row.direction} ${row.size} entry ${row.entryPrice}`;
   els.notes.value = [els.notes.value.trim(), note].filter(Boolean).join("\n\n");
 }
 
 function fillFromBrokerImport() {
   const text = els.brokerImportText.value.trim();
-  const rows = [...parseBrokerCsv(text), ...parseBrokerText(text)]
-    .sort((a, b) => Date.parse(b.occurredAt.replace(" ", "T")) - Date.parse(a.occurredAt.replace(" ", "T")));
+  const rows = pairBrokerFills([...parseBrokerCsv(text), ...parseBrokerText(text)]);
   if (rows.length === 0) {
     setStatus("No filled broker executions found in pasted text or CSV.");
     return;

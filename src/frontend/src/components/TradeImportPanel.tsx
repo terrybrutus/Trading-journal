@@ -20,10 +20,11 @@ function nsFromDateTime(value: string) {
 function rowNote(row: ImportedTradeRow) {
   return [
     `Broker import: ${row.source.toUpperCase()}`,
-    `Order type: ${row.orderType}`,
+    `Entry order: ${row.entryOrderType}`,
+    row.exitOrderType ? `Exit order: ${row.exitOrderType}` : undefined,
     `Status: ${row.status}`,
-    row.orderId ? `Order ID: ${row.orderId}` : undefined,
-    row.linkedOrderId ? `Linked order: ${row.linkedOrderId}` : undefined,
+    row.entryOrderId ? `Entry order ID: ${row.entryOrderId}` : undefined,
+    row.exitOrderId ? `Exit order ID: ${row.exitOrderId}` : undefined,
     row.pnl !== undefined ? `Imported P/L: ${row.pnl}` : undefined,
     "",
     row.raw,
@@ -87,9 +88,9 @@ export function TradeImportPanel() {
           symbol: row.symbol,
           direction: row.direction,
           tradeOrigin: TradeOrigin.selfGenerated,
-          entryPrice: row.price,
-          exitPrice: undefined,
-          positionSize: row.filledSize ?? row.size,
+          entryPrice: row.entryPrice,
+          exitPrice: row.exitPrice,
+          positionSize: row.size,
           confidenceRating: 1n,
           preTradeThesis: {
             thesis: "Imported broker execution. Add thesis/reflection before final review.",
@@ -187,9 +188,10 @@ export function TradeImportPanel() {
                     <th className="p-2">Symbol</th>
                     <th className="p-2">Side</th>
                     <th className="p-2">Size</th>
-                    <th className="p-2">Price</th>
+                    <th className="p-2">Entry</th>
+                    <th className="p-2">Exit</th>
                     <th className="p-2">P/L</th>
-                    <th className="p-2">Order</th>
+                    <th className="p-2">Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -205,10 +207,11 @@ export function TradeImportPanel() {
                       <td className="p-2 font-mono text-muted-foreground">{row.occurredAt}</td>
                       <td className="p-2 font-semibold">{row.symbol}</td>
                       <td className="p-2">{sideLabel(row.direction)}</td>
-                      <td className="p-2 font-mono">{row.filledSize ?? row.size}</td>
-                      <td className="p-2 font-mono">{row.price.toFixed(2)}</td>
+                      <td className="p-2 font-mono">{row.size}</td>
+                      <td className="p-2 font-mono">{row.entryPrice.toFixed(2)}</td>
+                      <td className="p-2 font-mono">{row.exitPrice === undefined ? "-" : row.exitPrice.toFixed(2)}</td>
                       <td className="p-2 font-mono">{row.pnl === undefined ? "-" : row.pnl.toFixed(2)}</td>
-                      <td className="p-2 text-muted-foreground">{row.orderType}</td>
+                      <td className="p-2 text-muted-foreground">{row.status}</td>
                     </tr>
                   ))}
                 </tbody>
