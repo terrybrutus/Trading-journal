@@ -1,5 +1,4 @@
 import { createActor } from "@/backend";
-import { Direction, MediaType } from "@/backend";
 import {
   loadConfig,
   useActor,
@@ -43,6 +42,37 @@ type ExtensionCaptureMessage = {
 };
 
 type ExtensionCapturePayload = NonNullable<ExtensionCaptureMessage["capture"]>;
+type RawCaptureResult = {
+  tradeId: bigint;
+  mediaId: bigint;
+  wasDraftCreated: boolean;
+};
+type RawBackendActor = {
+  receiveExtensionCapture: (capture: {
+    token: string;
+    symbol: [] | [string];
+    timeframe: [] | [string];
+    price: [] | [number];
+    mediaStorageKey: string;
+    mediaType: { screenshot: null };
+    caption: [] | [string];
+    direction: [] | [{ long: null } | { short: null }];
+    entryPrice: [] | [number];
+    exitPrice: [] | [number];
+    size: [] | [number];
+    realizedPnl: [] | [number];
+    outcomeNotes: [] | [string];
+    targetTradeId: [];
+  }) => Promise<RawCaptureResult>;
+  addAudioRecapToTrade: (
+    tradeId: bigint,
+    recap: {
+      audioStorageKey: string;
+      transcript: string;
+      durationSecs: bigint;
+    },
+  ) => Promise<unknown>;
+};
 
 function cleanText(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
@@ -56,10 +86,16 @@ function cleanFiniteMs(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-function directionFor(value: unknown): Direction | undefined {
-  if (value === "long") return Direction.long_;
-  if (value === "short") return Direction.short_;
-  return undefined;
+function rawOption<T>(value: T | undefined): [] | [T] {
+  return value === undefined ? [] : [value];
+}
+
+function rawDirectionFor(
+  value: unknown,
+): [] | [{ long: null } | { short: null }] {
+  if (value === "long") return [{ long: null }];
+  if (value === "short") return [{ short: null }];
+  return [];
 }
 
 function extensionFromContentType(contentType: string): string {
@@ -126,9 +162,13 @@ export function ExtensionCaptureBridge() {
     [identity],
   );
 
+  const rawActor = actor
+    ? ((actor as unknown as { actor?: RawBackendActor }).actor ?? null)
+    : null;
+
   const importCapture = useCallback(
     async (capture: ExtensionCapturePayload) => {
-      if (!actor) return false;
+      if (!actor || !rawActor) return false;
       const captureId = cleanText(capture.captureId);
       const deliveryId = cleanText(capture.deliveryId);
       const expiresAtMs = cleanFiniteMs(capture.expiresAtMs);
@@ -187,21 +227,27 @@ export function ExtensionCaptureBridge() {
           "image/png",
           `extension-screenshot-${captureId || "capture"}`,
         );
-        const result = await actor.receiveExtensionCapture({
+        const result = await rawActor.receiveExtensionCapture({
           token: capture.token,
-          symbol: cleanText(capture.symbol),
-          timeframe: cleanText(capture.timeframe),
-          price: cleanNumber(capture.price),
+          symbol: rawOption(cleanText(capture.symbol)),
+          timeframe: rawOption(cleanText(capture.timeframe)),
+          price: rawOption(cleanNumber(capture.price)),
           mediaStorageKey,
-          mediaType: MediaType.screenshot,
-          caption: cleanText(capture.caption) || cleanText(capture.bucket),
-          direction: directionFor(capture.direction),
-          entryPrice: cleanNumber(capture.entryPrice),
-          exitPrice: cleanNumber(capture.exitPrice),
-          size:
+          mediaType: { screenshot: null },
+          caption: rawOption(
+            cleanText(capture.caption) || cleanText(capture.bucket),
+          ),
+          direction: rawDirectionFor(capture.direction),
+          entryPrice: rawOption(cleanNumber(capture.entryPrice)),
+          exitPrice: rawOption(cleanNumber(capture.exitPrice)),
+          size: rawOption(
             cleanNumber(capture.size) ?? cleanNumber(capture.positionSize),
-          realizedPnl: cleanNumber(capture.realizedPnl),
-          outcomeNotes: notes.length > 0 ? notes.join("\n\n") : undefined,
+          ),
+          realizedPnl: rawOption(cleanNumber(capture.realizedPnl)),
+          outcomeNotes: rawOption(
+            notes.length > 0 ? notes.join("\n\n") : undefined,
+          ),
+          targetTradeId: [],
         });
 
         if (capture.audioDataUrl) {
@@ -211,7 +257,7 @@ export function ExtensionCaptureBridge() {
             `extension-audio-${captureId || "capture"}`,
           );
           if (audioStorageKey) {
-            await actor.addAudioRecapToTrade(result.tradeId, {
+            await rawActor.addAudioRecapToTrade(result.tradeId, {
               audioStorageKey,
               transcript: cleanText(capture.transcript) || "",
               durationSecs: BigInt(
@@ -258,7 +304,7 @@ export function ExtensionCaptureBridge() {
       }
       return true;
     },
-    [actor, queryClient, reportResult, uploadDataUrl],
+    [actor, queryClient, rawActor, reportResult, uploadDataUrl],
   );
 
   useEffect(() => {
