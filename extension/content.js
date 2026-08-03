@@ -2,9 +2,15 @@
   if (window.__quantumTradingViewCaptureInstalled) return;
   window.__quantumTradingViewCaptureInstalled = true;
 
+  const POSITION_CLASSES = [
+    "quantum-capture-button--bottom-right",
+    "quantum-capture-button--bottom-left",
+    "quantum-capture-button--top-right",
+    "quantum-capture-button--top-left",
+  ];
   const button = document.createElement("button");
   button.type = "button";
-  button.className = "quantum-capture-button";
+  button.className = "quantum-capture-button quantum-capture-button--bottom-right";
   button.textContent = "Journal";
   button.title = "Capture this TradingView chart";
 
@@ -28,6 +34,33 @@
   });
 
   document.documentElement.appendChild(button);
+  applyButtonSettings();
+
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== "local") return;
+    if (changes.quantumFloatingButtonEnabled || changes.quantumFloatingButtonPosition) {
+      applyButtonSettings({
+        enabled: changes.quantumFloatingButtonEnabled?.newValue,
+        position: changes.quantumFloatingButtonPosition?.newValue,
+      });
+    }
+  });
+
+  function applyButtonSettings(override = {}) {
+    chrome.storage.local.get(
+      ["quantumFloatingButtonEnabled", "quantumFloatingButtonPosition"],
+      (settings) => {
+        const enabled = override.enabled ?? settings.quantumFloatingButtonEnabled;
+        const position =
+          override.position ||
+          settings.quantumFloatingButtonPosition ||
+          "bottom-right";
+        button.hidden = enabled === false;
+        for (const className of POSITION_CLASSES) button.classList.remove(className);
+        button.classList.add(`quantum-capture-button--${position}`);
+      },
+    );
+  }
 
   function readTradingViewContext() {
     const title = document.title || "";

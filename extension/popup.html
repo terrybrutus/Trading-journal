@@ -32,12 +32,39 @@
             <button id="saveConnection" type="button">Save</button>
             <button id="clearPending" type="button">Clear pending</button>
           </div>
+          <div class="buttonPrefs">
+            <label class="inlineCheck">
+              <input id="floatingButtonEnabled" type="checkbox">
+              Show TradingView page button
+            </label>
+            <label>
+              Button position
+              <select id="floatingButtonPosition">
+                <option value="bottom-right">Bottom right</option>
+                <option value="bottom-left">Bottom left</option>
+                <option value="top-right">Top right</option>
+                <option value="top-left">Top left</option>
+              </select>
+            </label>
+          </div>
         </details>
       </section>
 
       <section class="notice">
         <strong>Caffeine sync status</strong>
         <span>The extension now hands captures to your logged-in Caffeine app, then the app calls its own backend.</span>
+      </section>
+
+      <section class="brokerImport">
+        <div>
+          <strong>Broker import</strong>
+          <span>Paste TradingView panel rows or upload a notification CSV to fill this capture from the latest filled execution.</span>
+        </div>
+        <textarea id="brokerImportText" rows="3" placeholder="Paste broker/trading panel rows here"></textarea>
+        <div class="brokerActions">
+          <input id="brokerImportFile" type="file" accept=".csv,text/csv">
+          <button id="fillFromBroker" type="button">Fill latest execution</button>
+        </div>
       </section>
 
       <section class="fields">

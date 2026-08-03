@@ -5,6 +5,11 @@ const els = {
   token: document.getElementById("token"),
   saveConnection: document.getElementById("saveConnection"),
   clearPending: document.getElementById("clearPending"),
+  floatingButtonEnabled: document.getElementById("floatingButtonEnabled"),
+  floatingButtonPosition: document.getElementById("floatingButtonPosition"),
+  brokerImportText: document.getElementById("brokerImportText"),
+  brokerImportFile: document.getElementById("brokerImportFile"),
+  fillFromBroker: document.getElementById("fillFromBroker"),
   symbol: document.getElementById("symbol"),
   timeframe: document.getElementById("timeframe"),
   price: document.getElementById("price"),
@@ -79,6 +84,130 @@ function numberOrNull(value) {
   if (!cleaned) return null;
   const number = Number(cleaned);
   return Number.isFinite(number) ? number : null;
+}
+
+function cleanImportNumber(value) {
+  const number = Number(String(value || "").replace(/[$,%\s,]/g, ""));
+  return Number.isFinite(number) ? number : null;
+}
+
+function parseCsvRows(input) {
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let inQuotes = false;
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index];
+    const next = input[index + 1];
+    if (char === "\"" && inQuotes && next === "\"") {
+      cell += "\"";
+      index += 1;
+      continue;
+    }
+    if (char === "\"") {
+      inQuotes = !inQuotes;
+      continue;
+    }
+    if (char === "," && !inQuotes) {
+      row.push(cell);
+      cell = "";
+      continue;
+    }
+    if ((char === "\n" || char === "\r") && !inQuotes) {
+      if (char === "\r" && next === "\n") index += 1;
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = "";
+      continue;
+    }
+    cell += char;
+  }
+  row.push(cell);
+  rows.push(row);
+  return rows.filter((items) => items.some((item) => item.trim()));
+}
+
+function parseBrokerCsv(input) {
+  const rows = parseCsvRows(input.trim());
+  if (rows.length < 2) return [];
+  const header = rows[0].map((name) => name.trim().toLowerCase());
+  const indexFor = (name) => header.indexOf(name);
+  return rows.slice(1).flatMap((row) => {
+    const symbol = row[indexFor("symbol")]?.trim();
+    const occurredAt = row[indexFor("time")]?.trim();
+    const title = row[indexFor("title")]?.trim() || "";
+    const text = row[indexFor("text")]?.trim() || "";
+    const match = text.match(/\b(Buy|Sell)\s+([\d.]+)\s+at\s+([\d,]+(?:\.\d+)?)/i);
+    if (!symbol || !occurredAt || !match || !/executed/i.test(title)) return [];
+    const size = cleanImportNumber(match[2]);
+    const price = cleanImportNumber(match[3]);
+    if (!size || price === null) return [];
+    return [{
+      symbol,
+      side: match[1].toLowerCase(),
+      size,
+      price,
+      occurredAt,
+      orderType: title.replace(/\s+on\s+.*$/i, "").replace(/\s+executed/i, "").trim()
+    }];
+  });
+}
+
+function parseBrokerText(input) {
+  const lines = input.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const rows = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const symbol = lines[index];
+    const side = lines[index + 1]?.toLowerCase();
+    if (!/^[A-Z0-9._:-]+$/i.test(symbol) || (side !== "buy" && side !== "sell")) continue;
+    const orderLine = lines[index + 2] || "";
+    const numbers = orderLine.split(/\s+/).map(cleanImportNumber).filter((value) => value !== null);
+    const size = numbers[0];
+    if (!size) continue;
+    let cursor = index + 3;
+    const prices = [];
+    while (cursor < lines.length) {
+      const value = cleanImportNumber(lines[cursor]);
+      if (value === null) break;
+      prices.push(value);
+      cursor += 1;
+    }
+    const status = lines[cursor]?.toLowerCase();
+    const detail = lines[cursor + 1] || "";
+    const occurredAt = detail.split(/\t+/).find((part) => /^\d{4}-\d{2}-\d{2}/.test(part.trim()))?.trim();
+    const price = prices[prices.length - 1];
+    if (status !== "filled" || !occurredAt || price === undefined) continue;
+    rows.push({ symbol, side, size, price, occurredAt, orderType: orderLine.replace(/[\d.\s]+/g, " ").trim() });
+    index = cursor + 1;
+  }
+  return rows;
+}
+
+function applyBrokerExecution(row) {
+  els.symbol.value = row.symbol || els.symbol.value;
+  els.direction.value = row.side === "sell" ? "short" : "long";
+  els.entryPrice.value = row.price?.toString() || els.entryPrice.value;
+  els.size.value = row.size?.toString() || els.size.value;
+  if (row.price) els.price.value = row.price.toString();
+  if (row.occurredAt) {
+    const parsed = new Date(row.occurredAt.includes("T") ? row.occurredAt : row.occurredAt.replace(" ", "T"));
+    if (!Number.isNaN(parsed.getTime())) els.tradeOccurredAt.value = toLocalInput(parsed);
+  }
+  const note = `Broker import: ${row.orderType || "Order"} ${row.side} ${row.size} at ${row.price}`;
+  els.notes.value = [els.notes.value.trim(), note].filter(Boolean).join("\n\n");
+}
+
+function fillFromBrokerImport() {
+  const text = els.brokerImportText.value.trim();
+  const rows = [...parseBrokerCsv(text), ...parseBrokerText(text)]
+    .sort((a, b) => Date.parse(b.occurredAt.replace(" ", "T")) - Date.parse(a.occurredAt.replace(" ", "T")));
+  if (rows.length === 0) {
+    setStatus("No filled broker executions found in pasted text or CSV.");
+    return;
+  }
+  applyBrokerExecution(rows[0]);
+  setStatus(`Filled latest broker execution for ${rows[0].symbol}.`);
 }
 
 function option(value) {
@@ -259,6 +388,14 @@ async function clearPendingCapture() {
   setStatus("Cleared pending extension captures.");
 }
 
+async function saveButtonPrefs() {
+  await chrome.storage.local.set({
+    quantumFloatingButtonEnabled: els.floatingButtonEnabled.checked,
+    quantumFloatingButtonPosition: els.floatingButtonPosition.value
+  });
+  setStatus("TradingView button preference saved.");
+}
+
 function normalizeCaffeineUrl(value) {
   try {
     const url = new URL(value);
@@ -342,9 +479,16 @@ function applyTradingViewContext(value = {}) {
 }
 
 async function loadConnection() {
-  const result = await chrome.storage.local.get(["quantumCaptureEndpoint", "quantumApiToken"]);
+  const result = await chrome.storage.local.get([
+    "quantumCaptureEndpoint",
+    "quantumApiToken",
+    "quantumFloatingButtonEnabled",
+    "quantumFloatingButtonPosition"
+  ]);
   els.endpoint.value = normalizeCaffeineUrl(result.quantumCaptureEndpoint || DEFAULT_ENDPOINT);
   els.token.value = result.quantumApiToken || "";
+  els.floatingButtonEnabled.checked = result.quantumFloatingButtonEnabled !== false;
+  els.floatingButtonPosition.value = result.quantumFloatingButtonPosition || "bottom-right";
 }
 
 async function loadPendingCapture() {
@@ -564,6 +708,15 @@ els.undo.addEventListener("click", () => {
 });
 els.saveConnection.addEventListener("click", saveConnection);
 els.clearPending.addEventListener("click", clearPendingCapture);
+els.floatingButtonEnabled.addEventListener("change", saveButtonPrefs);
+els.floatingButtonPosition.addEventListener("change", saveButtonPrefs);
+els.brokerImportFile.addEventListener("change", async () => {
+  const file = els.brokerImportFile.files?.[0];
+  if (!file) return;
+  els.brokerImportText.value = await file.text();
+  fillFromBrokerImport();
+});
+els.fillFromBroker.addEventListener("click", fillFromBrokerImport);
 els.capture.addEventListener("click", captureCurrentTab);
 els.autofill.addEventListener("click", () => autofillFromTradingViewTab().catch((error) => setStatus(`Auto-fill failed: ${error.message}`)));
 els.usePriceAsEntry.addEventListener("click", () => useChartPrice(els.entryPrice));

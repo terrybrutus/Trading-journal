@@ -38,6 +38,7 @@ main {
 header,
 .statusbar,
 .notice,
+.brokerImport,
 .fields,
 .toolbar,
 .notes,
@@ -82,6 +83,25 @@ footer {
   margin-top: 8px;
 }
 
+.buttonPrefs {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(160px, 1fr);
+  gap: 10px;
+  align-items: end;
+  margin-top: 10px;
+}
+
+.inlineCheck {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 8px;
+}
+
+.inlineCheck input {
+  width: auto;
+}
+
 .notice {
   display: flex;
   align-items: center;
@@ -92,6 +112,33 @@ footer {
 
 .notice strong {
   color: #111827;
+}
+
+.brokerImport {
+  display: grid;
+  gap: 8px;
+}
+
+.brokerImport > div:first-child {
+  display: grid;
+  gap: 2px;
+  color: #475569;
+  font-size: 13px;
+}
+
+.brokerImport strong {
+  color: #111827;
+}
+
+.brokerActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.brokerActions input {
+  width: min(280px, 100%);
 }
 
 h1 {

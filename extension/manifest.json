@@ -23,6 +23,7 @@
   ],
   "permissions": ["activeTab", "audioCapture", "scripting", "storage", "tabs"],
   "host_permissions": [
+    "<all_urls>",
     "https://www.tradingview.com/*",
     "https://*.tradingview.com/*",
     "https://*.caffeine.xyz/*"

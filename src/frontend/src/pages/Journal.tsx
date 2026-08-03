@@ -2,6 +2,7 @@ import {
   type TradeFilterValues,
   TradeFilters,
 } from "@/components/TradeFilters";
+import { TradeImportPanel } from "@/components/TradeImportPanel";
 import { TradeList } from "@/components/TradeList";
 import {
   toTradeListFilter,
@@ -145,6 +146,8 @@ export function Journal() {
           </p>
         </div>
       </div>
+
+      <TradeImportPanel />
 
       <TradeFilters
         values={filterValues}
