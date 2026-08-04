@@ -33,26 +33,41 @@ export function AudioRecorder({ onRecap }: AudioRecorderProps) {
   const [state, setState] = useState<RecorderState>("idle");
   const [elapsed, setElapsed] = useState(0);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [transcript, setTranscript] = useState<string>("");
+  const [audioMeta, setAudioMeta] = useState<{
+    filename: string;
+    contentType: string;
+  } | null>(null);
+  const [transcript, setTranscript] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [audioStorageKey, setAudioStorageKey] = useState<string | null>(null);
   const mediaRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const { identity } = useInternetIdentity();
 
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       for (const t of streamRef.current?.getTracks() ?? []) t.stop();
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
     };
-  }, []);
+  }, [audioUrl]);
+
+  function setLocalAudioUrl(url: string) {
+    setAudioUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return url;
+    });
+  }
 
   async function start() {
     setError(null);
     setTranscript("");
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
     setAudioUrl(null);
+    setAudioMeta(null);
     setAudioStorageKey(null);
     chunksRef.current = [];
     try {
@@ -60,12 +75,17 @@ export function AudioRecorder({ onRecap }: AudioRecorderProps) {
       streamRef.current = stream;
       const mr = new MediaRecorder(stream);
       mediaRef.current = mr;
-      mr.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
+      mr.ondataavailable = (event) => {
+        if (event.data.size > 0) chunksRef.current.push(event.data);
       };
       mr.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-        setAudioUrl(URL.createObjectURL(blob));
+        const contentType = mr.mimeType || "audio/webm";
+        const blob = new Blob(chunksRef.current, { type: contentType });
+        setLocalAudioUrl(URL.createObjectURL(blob));
+        setAudioMeta({
+          filename: `voice-note-${Date.now()}.webm`,
+          contentType,
+        });
         setState("recorded");
       };
       mr.start();
@@ -82,6 +102,20 @@ export function AudioRecorder({ onRecap }: AudioRecorderProps) {
     mediaRef.current?.stop();
     if (timerRef.current) clearInterval(timerRef.current);
     for (const t of streamRef.current?.getTracks() ?? []) t.stop();
+  }
+
+  function handleFile(file: File | undefined) {
+    if (!file) return;
+    setError(null);
+    setTranscript("");
+    setAudioStorageKey(null);
+    setElapsed(0);
+    setLocalAudioUrl(URL.createObjectURL(file));
+    setAudioMeta({
+      filename: file.name || `voice-note-${Date.now()}`,
+      contentType: file.type || "audio/mpeg",
+    });
+    setState("recorded");
   }
 
   async function uploadAudio() {
@@ -102,12 +136,11 @@ export function AudioRecorder({ onRecap }: AudioRecorderProps) {
         config.project_id,
         agent,
       );
-      const filename = `recap-${Date.now()}.webm`;
       const key = await client.putFile(
         bytes,
         undefined,
-        "audio/webm",
-        filename,
+        audioMeta?.contentType || blob.type || "audio/webm",
+        audioMeta?.filename || `voice-note-${Date.now()}.webm`,
       );
       setAudioStorageKey(key.hash);
       setState("review");
@@ -119,24 +152,19 @@ export function AudioRecorder({ onRecap }: AudioRecorderProps) {
 
   async function saveRecap() {
     if (!audioStorageKey) return;
-    const trimmed = transcript.trim();
-    if (trimmed.length === 0) {
-      setError("Please enter a transcript before saving.");
-      return;
-    }
     setState("saving");
     setError(null);
     try {
       if (onRecap) {
         await onRecap({
           audioStorageKey,
-          transcript: trimmed,
+          transcript: transcript.trim(),
           durationSecs: elapsed,
         });
       }
       setState("done");
     } catch (_e) {
-      setError("Failed to save recap. Please retry.");
+      setError("Failed to save voice note. Please retry.");
       setState("review");
     }
   }
@@ -144,7 +172,9 @@ export function AudioRecorder({ onRecap }: AudioRecorderProps) {
   function reset() {
     setState("idle");
     setElapsed(0);
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
     setAudioUrl(null);
+    setAudioMeta(null);
     setTranscript("");
     setAudioStorageKey(null);
     setError(null);
@@ -157,7 +187,7 @@ export function AudioRecorder({ onRecap }: AudioRecorderProps) {
     <Card className="border-border/60 bg-card/60 backdrop-blur-sm">
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-medium tracking-tight">
-          Audio Recap
+          Voice note
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -176,9 +206,26 @@ export function AudioRecorder({ onRecap }: AudioRecorderProps) {
           </span>
           <div className="ml-auto flex gap-2">
             {state === "idle" && (
-              <Button type="button" size="sm" onClick={start}>
-                Record
-              </Button>
+              <>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="audio/*,.m4a,.mp3,.wav,.webm"
+                  className="hidden"
+                  onChange={(event) => handleFile(event.target.files?.[0])}
+                />
+                <Button type="button" size="sm" onClick={start}>
+                  Record
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => fileRef.current?.click()}
+                >
+                  Upload
+                </Button>
+              </>
             )}
             {state === "recording" && (
               <Button
@@ -197,7 +244,7 @@ export function AudioRecorder({ onRecap }: AudioRecorderProps) {
                 onClick={uploadAudio}
                 disabled={state === "uploading"}
               >
-                {state === "uploading" ? "Uploading…" : "Upload audio"}
+                {state === "uploading" ? "Uploading..." : "Upload audio"}
               </Button>
             )}
             {(state === "review" || state === "saving") && (
@@ -205,14 +252,14 @@ export function AudioRecorder({ onRecap }: AudioRecorderProps) {
                 type="button"
                 size="sm"
                 onClick={saveRecap}
-                disabled={state === "saving" || transcript.trim().length === 0}
+                disabled={state === "saving"}
               >
-                {state === "saving" ? "Saving…" : "Save recap"}
+                {state === "saving" ? "Saving..." : "Save voice note"}
               </Button>
             )}
             {state === "done" && (
               <Button type="button" size="sm" variant="ghost" onClick={reset}>
-                New recording
+                New voice note
               </Button>
             )}
           </div>
@@ -221,16 +268,16 @@ export function AudioRecorder({ onRecap }: AudioRecorderProps) {
         {error && <p className="text-xs text-rose-400">{error}</p>}
 
         {audioUrl && state !== "recording" && (
-          // biome-ignore lint/a11y/useMediaCaption: audio is a recorded recap with separate transcript
+          // biome-ignore lint/a11y/useMediaCaption: audio is a trade voice note with optional text notes
           <audio controls src={audioUrl} className="w-full" />
         )}
 
         {state === "review" && (
           <div className="space-y-1.5">
             <Label htmlFor="transcript">
-              Transcript{" "}
+              Transcript or notes{" "}
               <span className="text-xs font-normal text-muted-foreground">
-                — type or paste what was said in the recording
+                - optional
               </span>
             </Label>
             <Textarea
@@ -238,11 +285,10 @@ export function AudioRecorder({ onRecap }: AudioRecorderProps) {
               rows={5}
               value={transcript}
               onChange={(e) => setTranscript(e.target.value)}
-              placeholder="Enter the transcript of your audio recap…"
+              placeholder="Paste a transcript, summarize the audio, or leave blank and keep the audio as the source."
             />
             <p className="text-xs text-muted-foreground">
-              The transcript is saved with the audio so you can search and
-              review it later.
+              The audio is saved to this trade. Text can be added now or later.
             </p>
           </div>
         )}
@@ -250,7 +296,7 @@ export function AudioRecorder({ onRecap }: AudioRecorderProps) {
         {state === "done" && transcript && (
           <div className="space-y-1.5">
             <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
-              Transcript
+              Transcript or notes
             </span>
             <p className="whitespace-pre-wrap rounded-md border border-border/60 bg-muted/30 p-3 text-sm leading-relaxed">
               {transcript}

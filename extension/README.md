@@ -27,7 +27,7 @@ The same folder works on Windows and macOS.
 1. Click the floating `Journal` button on TradingView, or click the extension icon and `Capture current tab`.
 2. Confirm symbol, direction, prices, size, P/L, bucket, and notes.
 3. Mark up the chart.
-4. Optionally record audio or use browser speech transcript.
+4. Optionally record audio for the capture.
 5. Click `Send to Caffeine`.
 
 The extension opens Caffeine, hands the capture to the signed-in app, and the app calls its own backend to create a draft. The extension keeps the last submitted capture in local extension storage as a recovery backup.

@@ -55,18 +55,6 @@
         <span>The extension now hands captures to your logged-in Caffeine app, then the app calls its own backend.</span>
       </section>
 
-      <section class="brokerImport">
-        <div>
-          <strong>Broker import</strong>
-          <span>Paste TradingView panel rows or upload a notification CSV to fill this capture from the latest filled execution.</span>
-        </div>
-        <textarea id="brokerImportText" rows="3" placeholder="Paste broker/trading panel rows here"></textarea>
-        <div class="brokerActions">
-          <input id="brokerImportFile" type="file" accept=".csv,text/csv">
-          <button id="fillFromBroker" type="button">Fill latest execution</button>
-        </div>
-      </section>
-
       <section class="fields">
         <label>
           Symbol
@@ -135,16 +123,11 @@
           Reflection notes
           <textarea id="notes" rows="4" placeholder="What happened? What did you learn?"></textarea>
         </label>
-        <label>
-          Transcript
-          <textarea id="transcript" rows="3" placeholder="Optional transcript"></textarea>
-        </label>
       </section>
 
       <section class="audio">
         <button id="record" type="button">Record audio</button>
         <button id="stop" type="button" disabled>Stop</button>
-        <button id="speech" type="button">Start transcript</button>
         <audio id="audio" controls></audio>
       </section>
 

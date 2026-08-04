@@ -38,7 +38,6 @@ main {
 header,
 .statusbar,
 .notice,
-.brokerImport,
 .fields,
 .toolbar,
 .notes,
@@ -114,33 +113,6 @@ footer {
   color: #111827;
 }
 
-.brokerImport {
-  display: grid;
-  gap: 8px;
-}
-
-.brokerImport > div:first-child {
-  display: grid;
-  gap: 2px;
-  color: #475569;
-  font-size: 13px;
-}
-
-.brokerImport strong {
-  color: #111827;
-}
-
-.brokerActions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.brokerActions input {
-  width: min(280px, 100%);
-}
-
 h1 {
   margin: 0 0 4px;
   font-size: 18px;
@@ -202,8 +174,7 @@ button.tool,
 #clearPending,
 #undo,
 #record,
-#stop,
-#speech {
+#stop {
   border-color: var(--line);
   background: #ffffff;
   color: var(--ink);
@@ -260,7 +231,7 @@ footer {
 
 .notes {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 10px;
 }
 

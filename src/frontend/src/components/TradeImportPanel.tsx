@@ -124,10 +124,10 @@ export function TradeImportPanel() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <CardTitle className="text-sm font-semibold">
-              Import broker executions
+              Import broker executions to drafts
             </CardTitle>
             <p className="mt-1 text-xs text-muted-foreground">
-              Upload TradingView notification CSVs or paste copied trading panel rows.
+              Upload a TradingView notification CSV or paste broker panel rows here. Caffeine owns execution matching; the extension only captures charts and voice notes.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

@@ -98,7 +98,7 @@ export function TradeDetail() {
     [media],
   );
 
-  // Resolve gateway URLs for audio recap storage keys.
+  // Resolve gateway URLs for voice-note storage keys.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -403,14 +403,14 @@ export function TradeDetail() {
 
       <div className="space-y-3">
         <h2 className="font-display text-lg font-semibold tracking-tight">
-          Audio recaps
+          Voice notes
         </h2>
         <AudioRecorder onRecap={handleRecap} />
         {recaps.length > 0 && (
           <Card className="border-border/60 bg-card/60 backdrop-blur-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium tracking-tight">
-                Saved recaps ({recaps.length})
+                Saved voice notes ({recaps.length})
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">

@@ -7,9 +7,6 @@ const els = {
   clearPending: document.getElementById("clearPending"),
   floatingButtonEnabled: document.getElementById("floatingButtonEnabled"),
   floatingButtonPosition: document.getElementById("floatingButtonPosition"),
-  brokerImportText: document.getElementById("brokerImportText"),
-  brokerImportFile: document.getElementById("brokerImportFile"),
-  fillFromBroker: document.getElementById("fillFromBroker"),
   symbol: document.getElementById("symbol"),
   timeframe: document.getElementById("timeframe"),
   price: document.getElementById("price"),
@@ -23,7 +20,6 @@ const els = {
   realizedPnl: document.getElementById("realizedPnl"),
   bucket: document.getElementById("bucket"),
   notes: document.getElementById("notes"),
-  transcript: document.getElementById("transcript"),
   canvas: document.getElementById("canvas"),
   color: document.getElementById("color"),
   width: document.getElementById("width"),
@@ -35,7 +31,6 @@ const els = {
   exportJson: document.getElementById("exportJson"),
   record: document.getElementById("record"),
   stop: document.getElementById("stop"),
-  speech: document.getElementById("speech"),
   audio: document.getElementById("audio"),
   status: document.getElementById("status")
 };
@@ -53,7 +48,6 @@ let drawing = false;
 let start = null;
 let last = null;
 let history = [];
-let recognition = null;
 
 function setStatus(message) {
   els.status.textContent = message;
@@ -84,250 +78,6 @@ function numberOrNull(value) {
   if (!cleaned) return null;
   const number = Number(cleaned);
   return Number.isFinite(number) ? number : null;
-}
-
-function cleanImportNumber(value) {
-  const number = Number(String(value || "").replace(/[$,%\s,]/g, ""));
-  return Number.isFinite(number) ? number : null;
-}
-
-function parseCsvRows(input) {
-  const rows = [];
-  let row = [];
-  let cell = "";
-  let inQuotes = false;
-  for (let index = 0; index < input.length; index += 1) {
-    const char = input[index];
-    const next = input[index + 1];
-    if (char === "\"" && inQuotes && next === "\"") {
-      cell += "\"";
-      index += 1;
-      continue;
-    }
-    if (char === "\"") {
-      inQuotes = !inQuotes;
-      continue;
-    }
-    if (char === "," && !inQuotes) {
-      row.push(cell);
-      cell = "";
-      continue;
-    }
-    if ((char === "\n" || char === "\r") && !inQuotes) {
-      if (char === "\r" && next === "\n") index += 1;
-      row.push(cell);
-      rows.push(row);
-      row = [];
-      cell = "";
-      continue;
-    }
-    cell += char;
-  }
-  row.push(cell);
-  rows.push(row);
-  return rows.filter((items) => items.some((item) => item.trim()));
-}
-
-function parseBrokerCsv(input) {
-  const rows = parseCsvRows(input.trim());
-  if (rows.length < 2) return [];
-  const header = rows[0].map((name) => name.trim().toLowerCase());
-  const indexFor = (name) => header.indexOf(name);
-  return rows.slice(1).flatMap((row) => {
-    const symbol = row[indexFor("symbol")]?.trim();
-    const occurredAt = row[indexFor("time")]?.trim();
-    const title = row[indexFor("title")]?.trim() || "";
-    const text = row[indexFor("text")]?.trim() || "";
-    const match = text.match(/\b(Buy|Sell)\s+([\d.]+)\s+at\s+([\d,]+(?:\.\d+)?)/i);
-    if (!symbol || !occurredAt || !match || !/executed/i.test(title)) return [];
-    const size = cleanImportNumber(match[2]);
-    const price = cleanImportNumber(match[3]);
-    if (!size || price === null) return [];
-    return [{
-      symbol,
-      side: match[1].toLowerCase(),
-      size,
-      price,
-      occurredAt,
-      orderType: title.replace(/\s+on\s+.*$/i, "").replace(/\s+executed/i, "").trim()
-    }];
-  });
-}
-
-function parseBrokerText(input) {
-  const lines = input.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  const rows = [];
-  for (let index = 0; index < lines.length; index += 1) {
-    const symbol = lines[index];
-    const side = lines[index + 1]?.toLowerCase();
-    if (!/^[A-Z0-9._:-]+$/i.test(symbol) || (side !== "buy" && side !== "sell")) continue;
-    const orderLine = lines[index + 2] || "";
-    const numbers = orderLine.split(/\s+/).map(cleanImportNumber).filter((value) => value !== null);
-    const size = numbers[0];
-    if (!size) continue;
-    let cursor = index + 3;
-    const prices = [];
-    while (cursor < lines.length) {
-      const value = cleanImportNumber(lines[cursor]);
-      if (value === null) break;
-      prices.push(value);
-      cursor += 1;
-    }
-    const status = lines[cursor]?.toLowerCase();
-    const detail = lines[cursor + 1] || "";
-    const detailParts = detail.split(/\t+/).map((part) => part.trim());
-    const occurredAt = detailParts.find((part) => /^\d{4}-\d{2}-\d{2}/.test(part))?.trim();
-    const linkedOrderId = detailParts.find((part) => /^[A-Z0-9._:-]+:\d+$/i.test(part));
-    const orderId = detailParts.find((part) => /^\d{6,}$/.test(part));
-    const numericDetail = detailParts
-      .map((part) => ({ raw: part, value: cleanImportNumber(part) }))
-      .filter((part) => part.value !== null && !/^\d{6,}$/.test(part.raw) && !/^\d{4}-\d{2}-\d{2}/.test(part.raw));
-    const pnl = numericDetail.length > 1 ? numericDetail[numericDetail.length - 1].value : undefined;
-    const price = prices[prices.length - 1];
-    if (status !== "filled" || !occurredAt || price === undefined) continue;
-    rows.push({ symbol, side, size, price, occurredAt, orderType: orderLine.replace(/[\d.\s]+/g, " ").trim(), linkedOrderId, orderId, pnl, source: "text" });
-    index = cursor + 1;
-  }
-  return rows;
-}
-
-function directionForBrokerSide(side) {
-  return side === "sell" ? "short" : "long";
-}
-
-function pairBrokerFills(fills) {
-  const positions = new Map();
-  const trades = [];
-  const sorted = [...fills].sort(
-    (a, b) => Date.parse(a.occurredAt.replace(" ", "T")) - Date.parse(b.occurredAt.replace(" ", "T"))
-  );
-  const used = new Set();
-  for (const close of sorted) {
-    const linkedOrderId = close.linkedOrderId?.split(":").pop();
-    if (!linkedOrderId || linkedOrderId === close.orderId || close.pnl === undefined) continue;
-    const entry = sorted.find((fill) =>
-      !used.has(fill) &&
-      fill !== close &&
-      fill.symbol === close.symbol &&
-      fill.orderId === linkedOrderId &&
-      fill.side !== close.side &&
-      Date.parse(fill.occurredAt.replace(" ", "T")) <= Date.parse(close.occurredAt.replace(" ", "T"))
-    );
-    if (!entry) continue;
-    used.add(entry);
-    used.add(close);
-    trades.push({
-      symbol: close.symbol,
-      direction: directionForBrokerSide(entry.side),
-      size: Math.min(entry.size, close.size),
-      entryPrice: entry.price,
-      exitPrice: close.price,
-      realizedPnl: close.pnl,
-      occurredAt: entry.occurredAt,
-      closedAt: close.occurredAt,
-      orderType: `${entry.orderType || "Entry"} -> ${close.orderType || "Exit"}`,
-      status: "closed"
-    });
-  }
-  if (sorted.some((fill) => fill.source === "text")) {
-    for (const fill of sorted) {
-      if (used.has(fill)) continue;
-      const linkedOrderId = fill.linkedOrderId?.split(":").pop();
-      if (fill.pnl !== undefined && linkedOrderId && linkedOrderId !== fill.orderId) continue;
-      trades.push({
-        symbol: fill.symbol,
-        direction: directionForBrokerSide(fill.side),
-        size: fill.size,
-        entryPrice: fill.price,
-        occurredAt: fill.occurredAt,
-        orderType: fill.orderType,
-        status: "open"
-      });
-    }
-    return trades.sort(
-      (a, b) => Date.parse((b.closedAt || b.occurredAt).replace(" ", "T")) - Date.parse((a.closedAt || a.occurredAt).replace(" ", "T"))
-    );
-  }
-  for (const fill of sorted) {
-    if (used.has(fill)) continue;
-    const open = positions.get(fill.symbol);
-    const direction = directionForBrokerSide(fill.side);
-    if (!open || open.direction === direction) {
-      const current = open || {
-        symbol: fill.symbol,
-        direction,
-        remaining: 0,
-        entryPrice: 0,
-        openedAt: fill.occurredAt,
-        orderType: fill.orderType
-      };
-      const nextRemaining = current.remaining + fill.size;
-      current.entryPrice = nextRemaining === 0
-        ? fill.price
-        : ((current.entryPrice * current.remaining) + (fill.price * fill.size)) / nextRemaining;
-      current.remaining = nextRemaining;
-      positions.set(fill.symbol, current);
-      continue;
-    }
-    const size = Math.min(open.remaining, fill.size);
-    trades.push({
-      symbol: fill.symbol,
-      direction: open.direction,
-      size,
-      entryPrice: open.entryPrice,
-      exitPrice: fill.price,
-      realizedPnl: fill.pnl,
-      occurredAt: open.openedAt,
-      closedAt: fill.occurredAt,
-      orderType: `${open.orderType || "Entry"} -> ${fill.orderType || "Exit"}`,
-      status: "closed"
-    });
-    open.remaining -= size;
-    if (open.remaining <= 0.0000001) positions.delete(fill.symbol);
-  }
-  for (const open of positions.values()) {
-    trades.push({
-      symbol: open.symbol,
-      direction: open.direction,
-      size: open.remaining,
-      entryPrice: open.entryPrice,
-      occurredAt: open.openedAt,
-      orderType: open.orderType,
-      status: "open"
-    });
-  }
-  return trades.sort(
-    (a, b) => Date.parse((b.closedAt || b.occurredAt).replace(" ", "T")) - Date.parse((a.closedAt || a.occurredAt).replace(" ", "T"))
-  );
-}
-
-function applyBrokerExecution(row) {
-  els.symbol.value = row.symbol || els.symbol.value;
-  els.direction.value = row.direction || els.direction.value;
-  els.entryPrice.value = row.entryPrice?.toString() || els.entryPrice.value;
-  els.exitPrice.value = row.exitPrice?.toString() || els.exitPrice.value;
-  els.size.value = row.size?.toString() || els.size.value;
-  if (row.exitPrice || row.entryPrice) els.price.value = (row.exitPrice || row.entryPrice).toString();
-  if (row.realizedPnl !== undefined) els.realizedPnl.value = row.realizedPnl.toFixed(2);
-  if (row.occurredAt) {
-    const parsed = new Date(row.occurredAt.includes("T") ? row.occurredAt : row.occurredAt.replace(" ", "T"));
-    if (!Number.isNaN(parsed.getTime())) els.tradeOccurredAt.value = toLocalInput(parsed);
-  }
-  const note = row.status === "closed"
-    ? `Broker import: ${row.orderType || "Order"} ${row.direction} ${row.size} entry ${row.entryPrice} exit ${row.exitPrice}`
-    : `Broker import: ${row.orderType || "Order"} ${row.direction} ${row.size} entry ${row.entryPrice}`;
-  els.notes.value = [els.notes.value.trim(), note].filter(Boolean).join("\n\n");
-}
-
-function fillFromBrokerImport() {
-  const text = els.brokerImportText.value.trim();
-  const rows = pairBrokerFills([...parseBrokerCsv(text), ...parseBrokerText(text)]);
-  if (rows.length === 0) {
-    setStatus("No filled broker executions found in pasted text or CSV.");
-    return;
-  }
-  applyBrokerExecution(rows[0]);
-  setStatus(`Filled latest broker execution for ${rows[0].symbol}.`);
 }
 
 function option(value) {
@@ -443,6 +193,7 @@ function onPointerUp(event) {
 }
 
 function currentEntry() {
+  const captureId = capture?.captureId || crypto.randomUUID();
   const screenshotDataUrl = els.canvas.toDataURL("image/png");
   const tradeOccurredAt = fromLocalInput(els.tradeOccurredAt.value);
   const entryPrice = numberOrNull(els.entryPrice.value);
@@ -451,10 +202,10 @@ function currentEntry() {
   const size = numberOrNull(els.size.value);
   const realizedPnl = numberOrNull(els.realizedPnl.value);
   const notes = els.notes.value.trim();
-  const transcript = els.transcript.value.trim();
 
   return {
-    captureId: capture?.captureId || crypto.randomUUID(),
+    captureId,
+    caseId: captureId,
     exportedAt: new Date().toISOString(),
     source: "tradingview-chrome-extension",
     pageUrl: capture?.pageUrl || "",
@@ -474,9 +225,9 @@ function currentEntry() {
     positionSize: size,
     realizedPnl,
     realizedProfitLoss: realizedPnl,
-    outcomeNotes: [notes, transcript ? `Transcript:\n${transcript}` : ""].filter(Boolean).join("\n\n") || null,
+    outcomeNotes: notes || null,
     reflectionNotes: notes || null,
-    transcript: transcript || null,
+    transcript: null,
     mediaType: "screenshot",
     mediaStorageKey: screenshotDataUrl,
     screenshotDataUrl,
@@ -486,6 +237,7 @@ function currentEntry() {
     audioDurationSecs,
     metadata: {
       bucket: els.bucket.value.trim(),
+      caseId: captureId,
       extensionVersion: "0.1.0"
     }
   };
@@ -778,38 +530,6 @@ function stopRecording() {
   els.stop.disabled = true;
 }
 
-function toggleSpeech() {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) {
-    setStatus("Speech transcript is not supported in this browser.");
-    return;
-  }
-  if (recognition) {
-    recognition.stop();
-    recognition = null;
-    els.speech.textContent = "Start transcript";
-    return;
-  }
-  recognition = new SpeechRecognition();
-  recognition.continuous = true;
-  recognition.interimResults = true;
-  recognition.lang = "en-US";
-  recognition.onresult = (event) => {
-    const parts = [];
-    for (let i = 0; i < event.results.length; i += 1) {
-      parts.push(event.results[i][0].transcript);
-    }
-    els.transcript.value = parts.join(" ").trim();
-  };
-  recognition.onend = () => {
-    recognition = null;
-    els.speech.textContent = "Start transcript";
-  };
-  recognition.start();
-  els.speech.textContent = "Stop transcript";
-  setStatus("Listening for transcript...");
-}
-
 document.querySelectorAll(".tool").forEach((button) => {
   button.addEventListener("click", () => {
     tool = button.dataset.tool;
@@ -830,13 +550,6 @@ els.saveConnection.addEventListener("click", saveConnection);
 els.clearPending.addEventListener("click", clearPendingCapture);
 els.floatingButtonEnabled.addEventListener("change", saveButtonPrefs);
 els.floatingButtonPosition.addEventListener("change", saveButtonPrefs);
-els.brokerImportFile.addEventListener("change", async () => {
-  const file = els.brokerImportFile.files?.[0];
-  if (!file) return;
-  els.brokerImportText.value = await file.text();
-  fillFromBrokerImport();
-});
-els.fillFromBroker.addEventListener("click", fillFromBrokerImport);
 els.capture.addEventListener("click", captureCurrentTab);
 els.autofill.addEventListener("click", () => autofillFromTradingViewTab().catch((error) => setStatus(`Auto-fill failed: ${error.message}`)));
 els.usePriceAsEntry.addEventListener("click", () => useChartPrice(els.entryPrice));
@@ -846,7 +559,6 @@ els.send.addEventListener("click", () => sendToCaffeine().catch((error) => setSt
 els.exportJson.addEventListener("click", exportJson);
 els.record.addEventListener("click", () => startRecording().catch((error) => setStatus(error.message)));
 els.stop.addEventListener("click", stopRecording);
-els.speech.addEventListener("click", toggleSpeech);
 
 (async function init() {
   els.tradeOccurredAt.value = toLocalInput(new Date());
